@@ -1,0 +1,33 @@
+name: Example Usage
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run tests with coverage
+      run: npm test -- --coverage
+    
+    - name: Check PR Code Coverage
+      uses: ./
+      with:
+        coverage-file: 'coverage/lcov.info'
+        minimum-coverage: '80'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        fail-on-coverage-decrease: 'true'
+        comment-on-pr: 'true'

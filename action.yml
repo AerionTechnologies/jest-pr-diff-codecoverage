@@ -1,0 +1,43 @@
+name: 'Jest PR Code Coverage Check'
+description: 'Check if lines changed in PR meet minimum code coverage threshold'
+author: 'Jest PR Coverage'
+
+inputs:
+  coverage-file:
+    description: 'Path to Jest coverage file (lcov.info or coverage-summary.json)'
+    required: true
+    default: 'coverage/lcov.info'
+  minimum-coverage:
+    description: 'Minimum code coverage percentage required for changed lines (0-100)'
+    required: true
+    default: '80'
+  github-token:
+    description: 'GitHub token for API access'
+    required: true
+    default: ${{ github.token }}
+  fail-on-coverage-decrease:
+    description: 'Whether to fail the action if coverage is below threshold'
+    required: false
+    default: 'true'
+  comment-on-pr:
+    description: 'Whether to comment coverage results on the PR'
+    required: false
+    default: 'true'
+
+outputs:
+  coverage-percentage:
+    description: 'Coverage percentage of changed lines'
+  lines-covered:
+    description: 'Number of changed lines covered by tests'
+  total-lines:
+    description: 'Total number of changed lines'
+  meets-threshold:
+    description: 'Whether the coverage meets the minimum threshold'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'shield'
+  color: 'green'
