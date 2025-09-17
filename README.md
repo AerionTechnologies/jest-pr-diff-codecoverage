@@ -43,7 +43,7 @@ jobs:
       run: npm test -- --coverage
     
     - name: Check PR Code Coverage
-      uses: your-username/jest-pr-codecoverage@v1
+      uses: AerionTechnologies/jest-pr-diff-codecoverage@v1
       with:
         coverage-file: 'coverage/lcov.info'
         minimum-coverage: '80'
@@ -54,7 +54,7 @@ jobs:
 
 ```yaml
     - name: Check PR Code Coverage
-      uses: your-username/jest-pr-codecoverage@v1
+      uses: AerionTechnologies/jest-pr-diff-codecoverage@v1
       with:
         coverage-file: 'coverage/coverage-final.json'  # Use Jest JSON format
         minimum-coverage: '85'                         # Require 85% coverage

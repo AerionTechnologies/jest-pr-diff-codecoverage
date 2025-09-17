@@ -1,6 +1,6 @@
-name: 'Jest PR Code Coverage Check'
+name: 'Jest PR Diff Code Coverage Check'
 description: 'Check if lines changed in PR meet minimum code coverage threshold'
-author: 'Jest PR Coverage'
+author: 'Aerion Technologies'
 
 inputs:
   coverage-file:
