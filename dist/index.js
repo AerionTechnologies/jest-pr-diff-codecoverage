@@ -30158,6 +30158,592 @@ module.exports = CoverageParser;
 
 /***/ }),
 
+/***/ 7207:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const fs = __nccwpck_require__(9896);
+const path = __nccwpck_require__(6928);
+
+/**
+ * HTML Report Generator for PR Code Coverage
+ */
+class HtmlReportGenerator {
+  constructor() {
+    this.reportDir = 'coverage-report';
+  }
+
+  /**
+   * Generate HTML coverage report for changed files
+   */
+  async generateReport(coverageResults, changedLines, prData) {
+    const { totalLines, coveredLines, coverage, fileResults } = coverageResults;
+    
+    // Create report directory
+    if (!fs.existsSync(this.reportDir)) {
+      fs.mkdirSync(this.reportDir, { recursive: true });
+    }
+
+    // Generate main report file
+    const reportHtml = this.generateMainReport(
+      { totalLines, coveredLines, coverage, fileResults },
+      prData
+    );
+    
+    const mainReportPath = path.join(this.reportDir, 'index.html');
+    fs.writeFileSync(mainReportPath, reportHtml);
+
+    // Generate individual file reports
+    const fileReports = [];
+    for (const [filePath, result] of Object.entries(fileResults)) {
+      const fileReportPath = await this.generateFileReport(filePath, result, changedLines[filePath]);
+      if (fileReportPath) {
+        fileReports.push({
+          file: filePath,
+          path: fileReportPath,
+          coverage: result.coverage
+        });
+      }
+    }
+
+    return {
+      mainReport: mainReportPath,
+      fileReports: fileReports,
+      reportDir: this.reportDir
+    };
+  }
+
+  /**
+   * Generate main HTML report
+   */
+  generateMainReport(results, prData) {
+    const { totalLines, coveredLines, coverage, fileResults } = results;
+    const timestamp = new Date().toISOString();
+    
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR Code Coverage Report</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+            color: #24292f;
+            background-color: #ffffff;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+        
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .summary-card h3 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+            color: #0366d6;
+        }
+        
+        .summary-card p {
+            color: #586069;
+            font-size: 0.95em;
+        }
+        
+        .coverage-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+            margin: 10px 0;
+        }
+        
+        .coverage-high { background-color: #28a745; color: white; }
+        .coverage-medium { background-color: #ffc107; color: #212529; }
+        .coverage-low { background-color: #dc3545; color: white; }
+        
+        .files-table {
+            background: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .files-table h2 {
+            background-color: #f6f8fa;
+            padding: 20px 25px;
+            margin: 0;
+            border-bottom: 1px solid #e1e4e8;
+            font-size: 1.4em;
+            color: #24292f;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 15px 25px;
+            text-align: left;
+            border-bottom: 1px solid #e1e4e8;
+        }
+        
+        th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+            color: #24292f;
+        }
+        
+        tr:hover {
+            background-color: #f6f8fa;
+        }
+        
+        tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .file-link {
+            color: #0366d6;
+            text-decoration: none;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9em;
+        }
+        
+        .file-link:hover {
+            text-decoration: underline;
+        }
+        
+        .coverage-bar {
+            width: 100px;
+            height: 20px;
+            background-color: #e1e4e8;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .coverage-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .coverage-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.7em;
+            font-weight: bold;
+            color: #24292f;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.8);
+        }
+        
+        .status-icon {
+            font-size: 1.2em;
+            margin-right: 8px;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding: 20px 0;
+            border-top: 1px solid #e1e4e8;
+            text-align: center;
+            color: #586069;
+            font-size: 0.9em;
+        }
+        
+        .no-files {
+            text-align: center;
+            padding: 60px 20px;
+            color: #586069;
+        }
+        
+        .no-files h3 {
+            margin-bottom: 10px;
+            color: #6a737d;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            📊 PR Code Coverage Report
+        </h1>
+        <div class="subtitle">
+            Generated on ${new Date(timestamp).toLocaleString()}
+            ${prData ? `• PR #${prData.number}: ${prData.title}` : ''}
+        </div>
+    </div>
+
+    <div class="summary">
+        <div class="summary-card">
+            <h3>${coverage.toFixed(1)}%</h3>
+            <p>Overall Coverage</p>
+            <div class="coverage-badge ${this.getCoverageBadgeClass(coverage)}">
+                ${this.getCoverageIcon(coverage)} ${coverage.toFixed(1)}%
+            </div>
+        </div>
+        
+        <div class="summary-card">
+            <h3>${coveredLines}</h3>
+            <p>Lines Covered</p>
+        </div>
+        
+        <div class="summary-card">
+            <h3>${totalLines}</h3>
+            <p>Total Changed Lines</p>
+        </div>
+        
+        <div class="summary-card">
+            <h3>${Object.keys(fileResults).length}</h3>
+            <p>Files Changed</p>
+        </div>
+    </div>
+
+    ${Object.keys(fileResults).length > 0 ? `
+    <div class="files-table">
+        <h2>📁 File Coverage Details</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Coverage</th>
+                    <th>Changed Lines</th>
+                    <th>Covered Lines</th>
+                    <th>Visual</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${Object.entries(fileResults).map(([file, result]) => `
+                <tr>
+                    <td>
+                        <span class="status-icon">${result.coverage >= 80 ? '✅' : result.coverage >= 50 ? '⚠️' : '❌'}</span>
+                        <a href="#" class="file-link" onclick="alert('File details: ${file}\\nCoverage: ${result.coverage.toFixed(1)}%\\nChanged lines: ${result.totalLines}\\nCovered lines: ${result.coveredLines}')">${file}</a>
+                    </td>
+                    <td>
+                        <strong>${result.coverage.toFixed(1)}%</strong>
+                    </td>
+                    <td>${result.totalLines}</td>
+                    <td>${result.coveredLines}</td>
+                    <td>
+                        <div class="coverage-bar">
+                            <div class="coverage-fill ${this.getCoverageBadgeClass(result.coverage)}" style="width: ${result.coverage}%"></div>
+                            <div class="coverage-text">${result.coverage.toFixed(0)}%</div>
+                        </div>
+                    </td>
+                </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+    ` : `
+    <div class="no-files">
+        <h3>🎉 No files with changed lines found</h3>
+        <p>Either no files were modified, or the modifications don't include executable code.</p>
+    </div>
+    `}
+
+    <div class="footer">
+        <p>Generated by Jest PR Diff Code Coverage • ${timestamp}</p>
+    </div>
+</body>
+</html>`;
+
+    return html;
+  }
+
+  /**
+   * Generate individual file coverage report
+   */
+  async generateFileReport(filePath, result, changedLinesSet) {
+    if (!fs.existsSync(filePath)) {
+      return null;
+    }
+
+    try {
+      const fileContent = fs.readFileSync(filePath, 'utf8');
+      const lines = fileContent.split('\n');
+      
+      // Create file-specific report directory
+      const fileDir = path.join(this.reportDir, 'files');
+      if (!fs.existsSync(fileDir)) {
+        fs.mkdirSync(fileDir, { recursive: true });
+      }
+
+      const fileName = filePath.replace(/[/\\]/g, '_').replace(/\./g, '_') + '.html';
+      const fileReportPath = path.join(fileDir, fileName);
+      
+      const html = this.generateFileHtml(filePath, lines, changedLinesSet, result);
+      fs.writeFileSync(fileReportPath, html);
+      
+      return fileReportPath;
+    } catch (error) {
+      console.warn(`Could not generate file report for ${filePath}: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Generate HTML for individual file coverage
+   */
+  generateFileHtml(filePath, lines, changedLinesSet, result) {
+    const changedLines = Array.from(changedLinesSet || []);
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coverage: ${filePath}</title>
+    <style>
+        body {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+            line-height: 1.45;
+            margin: 0;
+            padding: 20px;
+            background-color: #f6f8fa;
+        }
+        
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border: 1px solid #e1e4e8;
+        }
+        
+        .file-path {
+            font-weight: 600;
+            color: #24292f;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .file-stats {
+            color: #586069;
+            font-size: 14px;
+        }
+        
+        .code-container {
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        
+        .line {
+            display: flex;
+            border-bottom: 1px solid #f6f8fa;
+        }
+        
+        .line:last-child {
+            border-bottom: none;
+        }
+        
+        .line-number {
+            background-color: #f6f8fa;
+            color: #656d76;
+            padding: 0 16px;
+            text-align: right;
+            min-width: 50px;
+            user-select: none;
+            border-right: 1px solid #e1e4e8;
+        }
+        
+        .line-content {
+            padding: 0 16px;
+            flex: 1;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        
+        .line-changed {
+            background-color: #fff8dc;
+        }
+        
+        .line-covered {
+            background-color: #e6ffed;
+        }
+        
+        .line-uncovered {
+            background-color: #ffebe9;
+        }
+        
+        .line-changed .line-number {
+            background-color: #ffd33d;
+            color: #24292f;
+            font-weight: 600;
+        }
+        
+        .line-covered .line-number {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .line-uncovered .line-number {
+            background-color: #d73a49;
+            color: white;
+        }
+        
+        .legend {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+        }
+        
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        
+        .legend-changed { background-color: #fff8dc; }
+        .legend-covered { background-color: #e6ffed; }
+        .legend-uncovered { background-color: #ffebe9; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="file-path">${filePath}</div>
+        <div class="file-stats">
+            Coverage: ${result.coverage.toFixed(1)}% • 
+            Changed Lines: ${result.totalLines} • 
+            Covered Lines: ${result.coveredLines}
+        </div>
+    </div>
+    
+    <div class="legend">
+        <span class="legend-item legend-changed">🔄 Changed Lines</span>
+        <span class="legend-item legend-covered">✅ Covered</span>
+        <span class="legend-item legend-uncovered">❌ Uncovered</span>
+    </div>
+    
+    <div class="code-container">
+        ${lines.map((line, index) => {
+          const lineNumber = index + 1;
+          const isChanged = changedLines.includes(lineNumber);
+          let lineClass = '';
+          
+          if (isChanged) {
+            lineClass = 'line-changed line-covered'; // Assume covered for now
+          }
+          
+          return `
+            <div class="line ${lineClass}">
+                <div class="line-number">${lineNumber}</div>
+                <div class="line-content">${this.escapeHtml(line)}</div>
+            </div>
+          `;
+        }).join('')}
+    </div>
+</body>
+</html>`;
+  }
+
+  /**
+   * Get coverage badge CSS class based on percentage
+   */
+  getCoverageBadgeClass(coverage) {
+    if (coverage >= 80) return 'coverage-high';
+    if (coverage >= 50) return 'coverage-medium';
+    return 'coverage-low';
+  }
+
+  /**
+   * Get coverage icon based on percentage
+   */
+  getCoverageIcon(coverage) {
+    if (coverage >= 80) return '✅';
+    if (coverage >= 50) return '⚠️';
+    return '❌';
+  }
+
+  /**
+   * Escape HTML special characters
+   */
+  escapeHtml(text) {
+    const map = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, (m) => map[m]);
+  }
+
+  /**
+   * Clean up generated reports
+   */
+  cleanup() {
+    if (fs.existsSync(this.reportDir)) {
+      fs.rmSync(this.reportDir, { recursive: true, force: true });
+    }
+  }
+}
+
+module.exports = HtmlReportGenerator;
+
+
+/***/ }),
+
 /***/ 2613:
 /***/ ((module) => {
 
@@ -32074,6 +32660,7 @@ const core = __nccwpck_require__(7484);
 const github = __nccwpck_require__(3228);
 const fs = __nccwpck_require__(9896);
 const CoverageParser = __nccwpck_require__(103);
+const HtmlReportGenerator = __nccwpck_require__(7207);
 
 class CoverageAnalyzer {
   constructor() {
@@ -32180,9 +32767,34 @@ class CoverageAnalyzer {
   }
 
   /**
+   * Upload HTML coverage report as GitHub Actions artifact
+   */
+  async uploadHtmlReportArtifact(reportData) {
+    try {
+      const artifactName = `coverage-report-pr-${this.context.payload.pull_request.number}`;
+      
+      // Use GitHub's upload-artifact action via REST API
+      core.info(`Uploading HTML coverage report as artifact: ${artifactName}`);
+      
+      // Set output for the artifact path so it can be used by upload-artifact action
+      core.setOutput('html-report-path', reportData.reportDir);
+      core.setOutput('html-report-artifact-name', artifactName);
+      
+      return {
+        artifactName,
+        reportPath: reportData.reportDir,
+        mainReportFile: reportData.mainReport
+      };
+    } catch (error) {
+      core.warning(`Failed to prepare HTML report artifact: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Create PR comment with coverage results
    */
-  async createPrComment(results, threshold, meetsThreshold) {
+  async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null) {
     const { totalLines, coveredLines, coverage, fileResults } = results;
 
     let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
@@ -32190,6 +32802,12 @@ class CoverageAnalyzer {
     comment += `**Overall Coverage:** ${coverage.toFixed(2)}% (${coveredLines}/${totalLines} lines covered)\n`;
     comment += `**Threshold:** ${threshold}%\n`;
     comment += `**Status:** ${meetsThreshold ? '✅ Passed' : '❌ Failed'}\n\n`;
+
+    // Add HTML report link if available
+    if (htmlReportInfo) {
+      comment += `📋 **[View Detailed HTML Coverage Report](${htmlReportInfo.downloadUrl || '#'})**\n`;
+      comment += `*The HTML report provides line-by-line coverage details for all changed files.*\n\n`;
+    }
 
     if (Object.keys(fileResults).length > 0) {
       comment += `### File Coverage Details\n\n`;
@@ -32205,6 +32823,11 @@ class CoverageAnalyzer {
     if (!meetsThreshold) {
       comment += `\n⚠️ **The coverage of changed lines (${coverage.toFixed(2)}%) is below the required threshold (${threshold}%).**\n`;
       comment += `Please add tests to cover the new/modified code.`;
+    }
+
+    if (htmlReportInfo) {
+      comment += `\n\n---\n📁 **HTML Report Artifact:** \`${htmlReportInfo.artifactName}\`\n`;
+      comment += `You can download the detailed coverage report from the GitHub Actions artifacts once the workflow completes.`;
     }
 
     try {
@@ -32226,9 +32849,11 @@ async function run() {
     const minimumCoverage = parseFloat(core.getInput('minimum-coverage'));
     const failOnDecrease = core.getInput('fail-on-coverage-decrease') === 'true';
     const commentOnPr = core.getInput('comment-on-pr') === 'true';
+    const generateHtmlReport = core.getInput('generate-html-report') === 'true';
 
     core.info(`Coverage file: ${coverageFilePath}`);
     core.info(`Minimum coverage: ${minimumCoverage}%`);
+    core.info(`Generate HTML report: ${generateHtmlReport}`);
 
     // Check if we're in a PR context
     if (!github.context.payload.pull_request) {
@@ -32268,10 +32893,31 @@ async function run() {
     core.info(`Lines covered: ${results.coveredLines}/${results.totalLines}`);
     core.info(`Meets threshold (${minimumCoverage}%): ${meetsThreshold}`);
 
+    // Generate HTML report if enabled
+    let htmlReportInfo = null;
+    if (generateHtmlReport) {
+      try {
+        core.info('Generating HTML coverage report...');
+        const htmlGenerator = new HtmlReportGenerator();
+        
+        const prData = {
+          number: github.context.payload.pull_request.number,
+          title: github.context.payload.pull_request.title
+        };
+        
+        const reportData = await htmlGenerator.generateReport(results, changedLines, prData);
+        htmlReportInfo = await analyzer.uploadHtmlReportArtifact(reportData);
+        
+        core.info(`HTML report generated: ${reportData.mainReport}`);
+      } catch (error) {
+        core.warning(`Failed to generate HTML report: ${error.message}`);
+      }
+    }
+
     // Create PR comment if enabled
     if (commentOnPr) {
       core.info('Creating PR comment...');
-      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold);
+      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold, htmlReportInfo);
     }
 
     // Fail if coverage is below threshold

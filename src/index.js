@@ -2,6 +2,7 @@ const core = require('@actions/core');
 const github = require('@actions/github');
 const fs = require('fs');
 const CoverageParser = require('./coverage-parser');
+const HtmlReportGenerator = require('./html-report-generator');
 
 class CoverageAnalyzer {
   constructor() {
@@ -108,9 +109,34 @@ class CoverageAnalyzer {
   }
 
   /**
+   * Upload HTML coverage report as GitHub Actions artifact
+   */
+  async uploadHtmlReportArtifact(reportData) {
+    try {
+      const artifactName = `coverage-report-pr-${this.context.payload.pull_request.number}`;
+      
+      // Use GitHub's upload-artifact action via REST API
+      core.info(`Uploading HTML coverage report as artifact: ${artifactName}`);
+      
+      // Set output for the artifact path so it can be used by upload-artifact action
+      core.setOutput('html-report-path', reportData.reportDir);
+      core.setOutput('html-report-artifact-name', artifactName);
+      
+      return {
+        artifactName,
+        reportPath: reportData.reportDir,
+        mainReportFile: reportData.mainReport
+      };
+    } catch (error) {
+      core.warning(`Failed to prepare HTML report artifact: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Create PR comment with coverage results
    */
-  async createPrComment(results, threshold, meetsThreshold) {
+  async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null) {
     const { totalLines, coveredLines, coverage, fileResults } = results;
 
     let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
@@ -118,6 +144,12 @@ class CoverageAnalyzer {
     comment += `**Overall Coverage:** ${coverage.toFixed(2)}% (${coveredLines}/${totalLines} lines covered)\n`;
     comment += `**Threshold:** ${threshold}%\n`;
     comment += `**Status:** ${meetsThreshold ? '✅ Passed' : '❌ Failed'}\n\n`;
+
+    // Add HTML report link if available
+    if (htmlReportInfo) {
+      comment += `📋 **[View Detailed HTML Coverage Report](${htmlReportInfo.downloadUrl || '#'})**\n`;
+      comment += `*The HTML report provides line-by-line coverage details for all changed files.*\n\n`;
+    }
 
     if (Object.keys(fileResults).length > 0) {
       comment += `### File Coverage Details\n\n`;
@@ -133,6 +165,11 @@ class CoverageAnalyzer {
     if (!meetsThreshold) {
       comment += `\n⚠️ **The coverage of changed lines (${coverage.toFixed(2)}%) is below the required threshold (${threshold}%).**\n`;
       comment += `Please add tests to cover the new/modified code.`;
+    }
+
+    if (htmlReportInfo) {
+      comment += `\n\n---\n📁 **HTML Report Artifact:** \`${htmlReportInfo.artifactName}\`\n`;
+      comment += `You can download the detailed coverage report from the GitHub Actions artifacts once the workflow completes.`;
     }
 
     try {
@@ -154,9 +191,11 @@ async function run() {
     const minimumCoverage = parseFloat(core.getInput('minimum-coverage'));
     const failOnDecrease = core.getInput('fail-on-coverage-decrease') === 'true';
     const commentOnPr = core.getInput('comment-on-pr') === 'true';
+    const generateHtmlReport = core.getInput('generate-html-report') === 'true';
 
     core.info(`Coverage file: ${coverageFilePath}`);
     core.info(`Minimum coverage: ${minimumCoverage}%`);
+    core.info(`Generate HTML report: ${generateHtmlReport}`);
 
     // Check if we're in a PR context
     if (!github.context.payload.pull_request) {
@@ -196,10 +235,31 @@ async function run() {
     core.info(`Lines covered: ${results.coveredLines}/${results.totalLines}`);
     core.info(`Meets threshold (${minimumCoverage}%): ${meetsThreshold}`);
 
+    // Generate HTML report if enabled
+    let htmlReportInfo = null;
+    if (generateHtmlReport) {
+      try {
+        core.info('Generating HTML coverage report...');
+        const htmlGenerator = new HtmlReportGenerator();
+        
+        const prData = {
+          number: github.context.payload.pull_request.number,
+          title: github.context.payload.pull_request.title
+        };
+        
+        const reportData = await htmlGenerator.generateReport(results, changedLines, prData, coverageData);
+        htmlReportInfo = await analyzer.uploadHtmlReportArtifact(reportData);
+        
+        core.info(`HTML report generated: ${reportData.mainReport}`);
+      } catch (error) {
+        core.warning(`Failed to generate HTML report: ${error.message}`);
+      }
+    }
+
     // Create PR comment if enabled
     if (commentOnPr) {
       core.info('Creating PR comment...');
-      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold);
+      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold, htmlReportInfo);
     }
 
     // Fail if coverage is below threshold

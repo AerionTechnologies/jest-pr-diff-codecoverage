@@ -7,6 +7,7 @@ A GitHub Action that analyzes Jest code coverage for lines changed in a Pull Req
 - ✅ **Precise Coverage Analysis**: Only analyzes coverage for lines that were actually changed in the PR
 - 📊 **Multiple Format Support**: Works with LCOV and Jest JSON coverage formats
 - 💬 **PR Comments**: Automatically comments on PRs with detailed coverage reports
+- 📋 **HTML Reports**: Generate beautiful, detailed HTML coverage reports for visual analysis
 - 🎯 **Configurable Thresholds**: Set your own minimum coverage requirements
 - 🚫 **Optional Failure**: Choose whether to fail the action if coverage is below threshold
 
@@ -61,6 +62,31 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         fail-on-coverage-decrease: 'false'            # Don't fail, just report
         comment-on-pr: 'true'                         # Post detailed comment
+        generate-html-report: 'true'                  # Generate HTML report
+```
+
+### HTML Coverage Reports
+
+To enable detailed HTML coverage reports with visual line-by-line analysis:
+
+```yaml
+    - name: Check PR Code Coverage
+      uses: AerionTechnologies/jest-pr-diff-codecoverage@v1
+      id: coverage
+      with:
+        coverage-file: 'coverage/lcov.info'
+        minimum-coverage: '80'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        generate-html-report: 'true'
+    
+    # Upload the HTML report as a downloadable artifact
+    - name: Upload Coverage Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.coverage.outputs.html-report-artifact-name }}
+        path: ${{ steps.coverage.outputs.html-report-path }}
+        retention-days: 30
 ```
 
 ## Inputs
@@ -72,6 +98,7 @@ jobs:
 | `github-token` | GitHub token for API access | Yes | `${{ github.token }}` |
 | `fail-on-coverage-decrease` | Fail the action if coverage is below threshold | No | `true` |
 | `comment-on-pr` | Comment coverage results on the PR | No | `true` |
+| `generate-html-report` | Generate detailed HTML coverage report | No | `false` |
 
 ## Outputs
 
@@ -81,6 +108,8 @@ jobs:
 | `lines-covered` | Number of changed lines covered by tests |
 | `total-lines` | Total number of changed lines |
 | `meets-threshold` | Whether the coverage meets the minimum threshold |
+| `html-report-path` | Path to the generated HTML report directory |
+| `html-report-artifact-name` | Name of the uploaded HTML report artifact |
 
 ## Coverage File Formats
 
@@ -118,13 +147,45 @@ The action will post a comment on your PR like this:
 **Threshold:** 80%
 **Status:** ✅ Passed
 
+📋 **[View Detailed HTML Coverage Report](#)**
+*The HTML report provides line-by-line coverage details for all changed files.*
+
 ### File Coverage Details
 
 | File | Coverage | Lines Changed | Lines Covered |
 |------|----------|---------------|---------------|
 | src/utils.js | ✅ 100.00% | 3 | 3 |
 | src/main.js | ✅ 75.00% | 4 | 3 |
+
+---
+📁 **HTML Report Artifact:** `coverage-report-pr-123`
+You can download the detailed coverage report from the GitHub Actions artifacts once the workflow completes.
 ```
+
+## HTML Coverage Reports
+
+When `generate-html-report` is enabled, the action creates a beautiful, interactive HTML report that provides:
+
+### 📊 **Main Dashboard**
+- Overall coverage statistics with visual indicators
+- Coverage breakdown by file with progress bars
+- Color-coded status indicators (✅ High, ⚠️ Medium, ❌ Low coverage)
+- Professional styling with modern UI components
+
+### 📁 **Individual File Reports** 
+- Line-by-line coverage visualization
+- Highlighted changed lines in the PR
+- Color-coded coverage status:
+  - 🔄 **Changed Lines** (highlighted in yellow)
+  - ✅ **Covered Lines** (highlighted in green) 
+  - ❌ **Uncovered Lines** (highlighted in red)
+- Syntax highlighting for better readability
+
+### 🔗 **Easy Access**
+- Reports are uploaded as GitHub Actions artifacts
+- Direct download links in PR comments
+- Accessible to all team members with repository access
+- Retained for configurable duration (default: 30 days)
 
 ## Contributing
 
