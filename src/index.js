@@ -134,9 +134,32 @@ class CoverageAnalyzer {
   }
 
   /**
+   * Find existing coverage comment by this action
+   */
+  async findExistingCoverageComment() {
+    try {
+      const { data: comments } = await this.octokit.rest.issues.listComments({
+        owner: this.context.repo.owner,
+        repo: this.context.repo.repo,
+        issue_number: this.context.payload.pull_request.number
+      });
+
+      // Look for comments that contain our coverage report header
+      const coverageComment = comments.find(comment => 
+        comment.body.includes('## 📊 Code Coverage Report for Changed Lines')
+      );
+
+      return coverageComment || null;
+    } catch (error) {
+      core.warning(`Failed to find existing coverage comment: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
    * Create PR comment with coverage results
    */
-  async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null) {
+  async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null, updateExisting = false) {
     const { totalLines, coveredLines, coverage, fileResults } = results;
 
     let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
@@ -173,14 +196,34 @@ class CoverageAnalyzer {
     }
 
     try {
+      if (updateExisting) {
+        // Try to find and update existing comment
+        const existingComment = await this.findExistingCoverageComment();
+        
+        if (existingComment) {
+          await this.octokit.rest.issues.updateComment({
+            owner: this.context.repo.owner,
+            repo: this.context.repo.repo,
+            comment_id: existingComment.id,
+            body: comment
+          });
+          core.info(`Updated existing PR comment (ID: ${existingComment.id})`);
+          return;
+        } else {
+          core.info('No existing coverage comment found, creating new one');
+        }
+      }
+
+      // Create new comment (either when updateExisting is false or no existing comment found)
       await this.octokit.rest.issues.createComment({
         owner: this.context.repo.owner,
         repo: this.context.repo.repo,
         issue_number: this.context.payload.pull_request.number,
         body: comment
       });
+      core.info('Created new PR comment');
     } catch (error) {
-      core.warning(`Failed to create PR comment: ${error.message}`);
+      core.warning(`Failed to ${updateExisting ? 'update' : 'create'} PR comment: ${error.message}`);
     }
   }
 }
@@ -192,10 +235,12 @@ async function run() {
     const failOnDecrease = core.getInput('fail-on-coverage-decrease') === 'true';
     const commentOnPr = core.getInput('comment-on-pr') === 'true';
     const generateHtmlReport = core.getInput('generate-html-report') === 'true';
+    const updateComment = core.getInput('update-comment') === 'true';
 
     core.info(`Coverage file: ${coverageFilePath}`);
     core.info(`Minimum coverage: ${minimumCoverage}%`);
     core.info(`Generate HTML report: ${generateHtmlReport}`);
+    core.info(`Update comment: ${updateComment}`);
 
     // Check if we're in a PR context
     if (!github.context.payload.pull_request) {
@@ -258,8 +303,8 @@ async function run() {
 
     // Create PR comment if enabled
     if (commentOnPr) {
-      core.info('Creating PR comment...');
-      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold, htmlReportInfo);
+      core.info(updateComment ? 'Creating/updating PR comment...' : 'Creating PR comment...');
+      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold, htmlReportInfo, updateComment);
     }
 
     // Fail if coverage is below threshold

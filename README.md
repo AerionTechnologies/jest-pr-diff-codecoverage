@@ -63,7 +63,28 @@ jobs:
         fail-on-coverage-decrease: 'false'            # Don't fail, just report
         comment-on-pr: 'true'                         # Post detailed comment
         generate-html-report: 'true'                  # Generate HTML report
+        update-comment: 'true'                        # Update existing comment
 ```
+
+### Comment Update Behavior
+
+By default, the action creates a new comment on each run. To keep your PR comments clean, you can enable comment updating:
+
+```yaml
+    - name: Check PR Code Coverage
+      uses: AerionTechnologies/jest-pr-diff-codecoverage@v1
+      with:
+        coverage-file: 'coverage/lcov.info'
+        minimum-coverage: '80'
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        update-comment: 'true'  # Update existing comment instead of creating new ones
+```
+
+When `update-comment` is enabled:
+- The action will look for an existing coverage comment from a previous run
+- If found, it will update that comment with the new coverage data
+- If no existing comment is found, it will create a new one
+- This helps keep PR conversations clean by avoiding multiple coverage comments
 
 ### HTML Coverage Reports
 
@@ -99,6 +120,7 @@ To enable detailed HTML coverage reports with visual line-by-line analysis:
 | `fail-on-coverage-decrease` | Fail the action if coverage is below threshold | No | `true` |
 | `comment-on-pr` | Comment coverage results on the PR | No | `true` |
 | `generate-html-report` | Generate detailed HTML coverage report | No | `false` |
+| `update-comment` | Update existing coverage comment instead of creating new ones | No | `false` |
 
 ## Outputs
 
