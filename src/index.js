@@ -122,10 +122,16 @@ class CoverageAnalyzer {
       core.setOutput('html-report-path', reportData.reportDir);
       core.setOutput('html-report-artifact-name', artifactName);
       
+      // Generate URL to the workflow run's artifacts page
+      const runId = this.context.runId;
+      const repo = this.context.repo;
+      const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+      
       return {
         artifactName,
         reportPath: reportData.reportDir,
-        mainReportFile: reportData.mainReport
+        mainReportFile: reportData.mainReport,
+        downloadUrl: artifactsUrl
       };
     } catch (error) {
       core.warning(`Failed to prepare HTML report artifact: ${error.message}`);
@@ -171,7 +177,7 @@ class CoverageAnalyzer {
     // Add HTML report link if available
     if (htmlReportInfo) {
       comment += `📋 **[View Detailed HTML Coverage Report](${htmlReportInfo.downloadUrl || '#'})**\n`;
-      comment += `*The HTML report provides line-by-line coverage details for all changed files.*\n\n`;
+      comment += `*Click the link above to view the workflow run and download the \`${htmlReportInfo.artifactName}\` artifact for detailed line-by-line coverage analysis.*\n\n`;
     }
 
     if (Object.keys(fileResults).length > 0) {
@@ -192,7 +198,8 @@ class CoverageAnalyzer {
 
     if (htmlReportInfo) {
       comment += `\n\n---\n📁 **HTML Report Artifact:** \`${htmlReportInfo.artifactName}\`\n`;
-      comment += `You can download the detailed coverage report from the GitHub Actions artifacts once the workflow completes.`;
+      comment += `The detailed HTML coverage report is available as a downloadable artifact in the [workflow run](${htmlReportInfo.downloadUrl}). `;
+      comment += `Once the workflow completes, you can download the artifact to view comprehensive coverage details.`;
     }
 
     try {
