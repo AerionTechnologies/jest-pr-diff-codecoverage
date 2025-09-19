@@ -341,6 +341,44 @@ class HtmlReportGenerator {
             color: white;
         }
         
+        .line-gap {
+            display: flex;
+            border-bottom: 1px solid #f6f8fa;
+            min-height: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .line-gap .line-number {
+            background-color: #e9ecef;
+            color: #6c757d;
+            padding: 0 12px;
+            text-align: center;
+            min-width: 60px;
+            user-select: none;
+            border-right: 1px solid #e1e4e8;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-style: italic;
+        }
+        
+        .line-gap .line-content {
+            padding: 0 16px;
+            flex: 1;
+            font-style: italic;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+        }
+        
+        .no-changes {
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
         .coverage-bar {
             width: 100px;
             height: 20px;
@@ -544,10 +582,87 @@ class HtmlReportGenerator {
   }
 
   /**
+   * Get lines to display with context around changed lines
+   */
+  getLinesToDisplay(changedLines, totalLines, contextLines = 6) {
+    const linesToShow = new Set();
+    
+    // Add all changed lines
+    changedLines.forEach(lineNum => {
+      linesToShow.add(lineNum);
+    });
+    
+    // Add context lines around changed lines
+    changedLines.forEach(lineNum => {
+      for (let i = Math.max(1, lineNum - contextLines); i <= Math.min(totalLines, lineNum + contextLines); i++) {
+        linesToShow.add(i);
+      }
+    });
+    
+    // Convert to sorted array for easier processing
+    return Array.from(linesToShow).sort((a, b) => a - b);
+  }
+
+  /**
+   * Render lines with context, showing gaps where code is omitted
+   */
+  renderLinesWithContext(lines, linesToDisplay, changedLines, coverageMap) {
+    if (linesToDisplay.length === 0) {
+      return '<div class="no-changes">No lines to display</div>';
+    }
+
+    let result = '';
+    let previousLine = 0;
+
+    for (let i = 0; i < linesToDisplay.length; i++) {
+      const lineNumber = linesToDisplay[i];
+      const line = lines[lineNumber - 1]; // lines array is 0-indexed
+      
+      // Show gap indicator if there's a jump in line numbers
+      if (lineNumber > previousLine + 1) {
+        const skippedLines = lineNumber - previousLine - 1;
+        result += `
+          <div class="line-gap">
+            <div class="line-number gap">⋯</div>
+            <div class="line-content gap">⋯ ${skippedLines} lines omitted ⋯</div>
+          </div>
+        `;
+      }
+      
+      const isChanged = changedLines.includes(lineNumber);
+      const isCovered = coverageMap.get(lineNumber);
+      
+      let lineClass = '';
+      if (isChanged) {
+        if (isCovered === true) {
+          lineClass = 'line-changed line-covered';
+        } else if (isCovered === false) {
+          lineClass = 'line-changed line-uncovered';
+        } else {
+          lineClass = 'line-changed'; // Changed but no coverage data
+        }
+      }
+      // Only highlight changed lines - don't highlight unchanged lines even if they have coverage data
+      
+      result += `
+        <div class="line ${lineClass}">
+          <div class="line-number">${lineNumber}</div>
+          <div class="line-content">${this.escapeHtml(line || '')}</div>
+        </div>
+      `;
+      
+      previousLine = lineNumber;
+    }
+
+    return result;
+  }
+
+  /**
    * Generate individual expandable file section
    */
   generateFileSection(filePath, lines, changedLinesSet, result, fileCoverageData, fileId) {
     const changedLines = Array.from(changedLinesSet || []);
+    const linesToDisplay = this.getLinesToDisplay(changedLines, lines.length);
     
     // Create a map of line numbers to coverage status
     const coverageMap = new Map();
@@ -595,30 +710,7 @@ class HtmlReportGenerator {
                 </div>
                 
                 <div class="code-container">
-                    ${lines.map((line, index) => {
-                      const lineNumber = index + 1;
-                      const isChanged = changedLines.includes(lineNumber);
-                      const isCovered = coverageMap.get(lineNumber);
-                      
-                      let lineClass = '';
-                      if (isChanged) {
-                        if (isCovered === true) {
-                          lineClass = 'line-changed line-covered';
-                        } else if (isCovered === false) {
-                          lineClass = 'line-changed line-uncovered';
-                        } else {
-                          lineClass = 'line-changed'; // Changed but no coverage data
-                        }
-                      }
-                      // Only highlight changed lines - don't highlight unchanged lines even if they have coverage data
-                      
-                      return `
-                        <div class="line ${lineClass}">
-                            <div class="line-number">${lineNumber}</div>
-                            <div class="line-content">${this.escapeHtml(line)}</div>
-                        </div>
-                      `;
-                    }).join('')}
+                    ${this.renderLinesWithContext(lines, linesToDisplay, changedLines, coverageMap)}
                 </div>
             </div>
         </div>`;
@@ -968,6 +1060,7 @@ class HtmlReportGenerator {
    */
   generateFileHtml(filePath, lines, changedLinesSet, result, fileCoverageData) {
     const changedLines = Array.from(changedLinesSet || []);
+    const linesToDisplay = this.getLinesToDisplay(changedLines, lines.length);
     
     // Create a map of line numbers to coverage status
     const coverageMap = new Map();
@@ -1074,6 +1167,44 @@ class HtmlReportGenerator {
             color: white;
         }
         
+        .line-gap {
+            display: flex;
+            border-bottom: 1px solid #f6f8fa;
+            min-height: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .line-gap .line-number {
+            background-color: #e9ecef;
+            color: #6c757d;
+            padding: 0 12px;
+            text-align: center;
+            min-width: 60px;
+            user-select: none;
+            border-right: 1px solid #e1e4e8;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-style: italic;
+        }
+        
+        .line-gap .line-content {
+            padding: 0 16px;
+            flex: 1;
+            font-style: italic;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+        }
+        
+        .no-changes {
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+        }
+        
         .legend {
             margin-bottom: 20px;
             padding: 15px;
@@ -1112,30 +1243,7 @@ class HtmlReportGenerator {
     </div>
     
     <div class="code-container">
-        ${lines.map((line, index) => {
-          const lineNumber = index + 1;
-          const isChanged = changedLines.includes(lineNumber);
-          const isCovered = coverageMap.get(lineNumber);
-          
-          let lineClass = '';
-          if (isChanged) {
-            if (isCovered === true) {
-              lineClass = 'line-changed line-covered';
-            } else if (isCovered === false) {
-              lineClass = 'line-changed line-uncovered';
-            } else {
-              lineClass = 'line-changed'; // Changed but no coverage data
-            }
-          }
-          // Only highlight changed lines - don't highlight unchanged lines even if they have coverage data
-          
-          return `
-            <div class="line ${lineClass}">
-                <div class="line-number">${lineNumber}</div>
-                <div class="line-content">${this.escapeHtml(line)}</div>
-            </div>
-          `;
-        }).join('')}
+        ${this.renderLinesWithContext(lines, linesToDisplay, changedLines, coverageMap)}
     </div>
 </body>
 </html>`;
