@@ -86,7 +86,7 @@ class HtmlReportGenerator {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PR Code Coverage Report</title>
+    <title>PR Diff Coverage Report</title>
     <style>
         * {
             margin: 0;
@@ -172,57 +172,6 @@ class HtmlReportGenerator {
         .coverage-medium { background-color: #ffc107; color: #212529; }
         .coverage-low { background-color: #dc3545; color: white; }
         
-        .files-overview {
-            padding: 30px;
-            border-bottom: 1px solid #e1e4e8;
-        }
-        
-        .files-overview h2 {
-            font-size: 1.4em;
-            margin-bottom: 20px;
-            color: #24292f;
-        }
-        
-        .file-overview-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        
-        .file-overview-table th,
-        .file-overview-table td {
-            padding: 15px;
-            text-align: left;
-            border-bottom: 1px solid #e1e4e8;
-        }
-        
-        .file-overview-table th {
-            background-color: #f6f8fa;
-            font-weight: 600;
-        }
-        
-        .file-overview-table tr:hover {
-            background-color: #f6f8fa;
-        }
-        
-        .file-link-button {
-            color: #0366d6;
-            text-decoration: none;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-            font-size: 0.9em;
-            padding: 5px 10px;
-            border: 1px solid #0366d6;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-        }
-        
-        .file-link-button:hover {
-            background-color: #0366d6;
-            color: white;
-        }
         
         .file-section {
             border-bottom: 1px solid #e1e4e8;
@@ -463,83 +412,65 @@ class HtmlReportGenerator {
     <div class="container">
         <div class="header">
             <h1>
-                📊 PR Code Coverage Report
+                📊 PR Diff Coverage Report
             </h1>
             <div class="subtitle">
-                Generated on ${new Date(timestamp).toLocaleString()}
-                ${prData ? `• PR #${prData.number}: ${prData.title}` : ''}
+                Coverage analysis for changed lines only • Generated on ${new Date(timestamp).toLocaleString()}
+                ${prData ? `<br>PR #${prData.number}: ${prData.title}` : ''}
             </div>
         </div>
 
         <div class="summary">
             <div class="summary-card">
                 <h3>${coverage.toFixed(1)}%</h3>
-                <p>Overall Coverage</p>
+                <p>PR Diff Coverage</p>
                 <div class="coverage-badge ${this.getCoverageBadgeClass(coverage)}">
                     ${this.getCoverageIcon(coverage)} ${coverage.toFixed(1)}%
+                </div>
+                <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
+                    Changed lines only
                 </div>
             </div>
             
             <div class="summary-card">
                 <h3>${coveredLines}</h3>
-                <p>Lines Covered</p>
+                <p>Changed Lines Covered</p>
+                <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
+                    Lines with test coverage
+                </div>
             </div>
             
             <div class="summary-card">
                 <h3>${totalLines}</h3>
                 <p>Total Changed Lines</p>
+                <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
+                    Lines modified in this PR
+                </div>
             </div>
             
             <div class="summary-card">
                 <h3>${Object.keys(fileResults).length}</h3>
-                <p>Files Changed</p>
+                <p>Files Modified</p>
+                <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
+                    Files with changes
+                </div>
             </div>
         </div>
 
-        ${Object.keys(fileResults).length > 0 ? `
-        <div class="files-overview">
-            <h2>📁 File Coverage Overview</h2>
-            <table class="file-overview-table">
-                <thead>
-                    <tr>
-                        <th>File</th>
-                        <th>Coverage</th>
-                        <th>Changed Lines</th>
-                        <th>Covered Lines</th>
-                        <th>Visual</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${Object.entries(fileResults).map(([file, result]) => {
-                      const fileId = file.replace(/[/\\]/g, '_').replace(/\./g, '_');
-                      return `
-                    <tr>
-                        <td>
-                            <span class="status-icon">${result.coverage >= 80 ? '✅' : result.coverage >= 50 ? '⚠️' : '❌'}</span>
-                            <span style="font-family: 'SFMono-Regular', Consolas, monospace; margin-left: 8px;">${file}</span>
-                        </td>
-                        <td>
-                            <strong>${result.coverage.toFixed(1)}%</strong>
-                        </td>
-                        <td>${result.totalLines}</td>
-                        <td>${result.coveredLines}</td>
-                        <td>
-                            <div class="coverage-bar">
-                                <div class="coverage-fill ${this.getCoverageBadgeClass(result.coverage)}" style="width: ${result.coverage}%"></div>
-                                <div class="coverage-text">${result.coverage.toFixed(0)}%</div>
-                            </div>
-                        </td>
-                        <td>
-                            <a href="#${fileId}" class="file-link-button" onclick="toggleFile('${fileId}')">View Code</a>
-                        </td>
-                    </tr>
-                    `;
-                    }).join('')}
-                </tbody>
-            </table>
+        <div style="background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin: 20px 30px; color: #495057;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <span style="font-size: 1.2em;">ℹ️</span>
+                <strong style="font-size: 1.1em;">About This Report</strong>
+            </div>
+            <p style="margin: 0; line-height: 1.5;">
+                This report shows <strong>test coverage for changed lines only</strong>, not overall project coverage. 
+                It analyzes which lines modified in this PR are covered by tests. Lines highlighted in 
+                <span style="background: #e6ffed; padding: 2px 4px; border-radius: 3px;">green</span> are covered by tests, 
+                while lines highlighted in <span style="background: #ffebe9; padding: 2px 4px; border-radius: 3px;">red</span> are not covered.
+            </p>
         </div>
 
+        ${Object.keys(fileResults).length > 0 ? `
         ${fileSectionsHtml}
         ` : `
         <div style="text-align: center; padding: 60px 20px; color: #586069;">
@@ -550,6 +481,9 @@ class HtmlReportGenerator {
 
         <div class="footer">
             <p>Generated by Jest PR Diff Code Coverage • ${timestamp}</p>
+            <p style="font-size: 0.85em; margin-top: 5px; opacity: 0.8;">
+                This report analyzes test coverage for changed lines only, not overall project coverage
+            </p>
         </div>
     </div>
 
@@ -631,9 +565,13 @@ class HtmlReportGenerator {
                     <span class="file-path">${filePath}</span>
                 </div>
                 <div class="file-stats">
-                    <span>Coverage: ${result.coverage.toFixed(1)}%</span>
+                    <div class="coverage-bar">
+                        <div class="coverage-fill ${this.getCoverageBadgeClass(result.coverage)}" style="width: ${result.coverage}%"></div>
+                        <div class="coverage-text">${result.coverage.toFixed(0)}%</div>
+                    </div>
                     <span>Changed: ${result.totalLines}</span>
                     <span>Covered: ${result.coveredLines}</span>
+                    <span style="font-size: 0.8em; opacity: 0.7;">Diff Coverage</span>
                     <span class="expand-icon">▼</span>
                 </div>
             </div>
@@ -671,11 +609,8 @@ class HtmlReportGenerator {
                         } else {
                           lineClass = 'line-changed'; // Changed but no coverage data
                         }
-                      } else if (isCovered === true) {
-                        lineClass = 'line-covered';
-                      } else if (isCovered === false) {
-                        lineClass = 'line-uncovered';
                       }
+                      // Only highlight changed lines - don't highlight unchanged lines even if they have coverage data
                       
                       return `
                         <div class="line ${lineClass}">
@@ -701,7 +636,7 @@ class HtmlReportGenerator {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PR Code Coverage Report</title>
+    <title>PR Diff Coverage Report</title>
     <style>
         * {
             margin: 0;
@@ -1191,11 +1126,8 @@ class HtmlReportGenerator {
             } else {
               lineClass = 'line-changed'; // Changed but no coverage data
             }
-          } else if (isCovered === true) {
-            lineClass = 'line-covered';
-          } else if (isCovered === false) {
-            lineClass = 'line-uncovered';
           }
+          // Only highlight changed lines - don't highlight unchanged lines even if they have coverage data
           
           return `
             <div class="line ${lineClass}">

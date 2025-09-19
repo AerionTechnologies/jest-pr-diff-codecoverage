@@ -1,0 +1,15 @@
+{
+  "watch": [
+    "src/",
+    "dev-generate-report.js"
+  ],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules/",
+    "dist/",
+    "coverage-report/",
+    "src/__tests__/"
+  ],
+  "exec": "node dev-generate-report.js"
+}
+

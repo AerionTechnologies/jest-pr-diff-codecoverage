@@ -1,12 +1,16 @@
 {
-  "name": "jest-pr-codecoverage",
+  "name": "jest-pr-diff-codecoverage",
   "version": "1.0.0",
   "description": "GitHub Action to check Jest code coverage for PR changed lines",
   "main": "src/index.js",
   "scripts": {
     "build": "ncc build src/index.js -o dist --source-map --license licenses.txt",
     "test": "jest",
-    "lint": "eslint src/**/*.js"
+    "lint": "eslint src/**/*.js",
+    "dev:report": "node dev-generate-report.js",
+    "dev:clean": "node dev-generate-report.js clean",
+    "dev:watch": "nodemon dev-generate-report.js",
+    "dev": "npm run dev:report"
   },
   "keywords": [
     "github-action",
@@ -24,6 +28,7 @@
   "devDependencies": {
     "@vercel/ncc": "^0.38.1",
     "eslint": "^8.57.0",
-    "jest": "^29.7.0"
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.1"
   }
 }
