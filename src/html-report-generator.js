@@ -12,7 +12,7 @@ class HtmlReportGenerator {
   /**
    * Generate HTML coverage report for changed files
    */
-  async generateReport(coverageResults, changedLines, prData, coverageData = null) {
+  async generateReport(coverageResults, changedLines, prData, coverageData = null, minimumCoverage = 80) {
     const { totalLines, coveredLines, coverage, fileResults } = coverageResults;
     
     // Create report directory
@@ -21,13 +21,14 @@ class HtmlReportGenerator {
     }
 
     // Generate expandable file sections within the main report
-    const fileSectionsHtml = this.generateFileSectionsHtml(fileResults, changedLines, coverageData);
+    const fileSectionsHtml = this.generateFileSectionsHtml(fileResults, changedLines, coverageData, minimumCoverage);
     
     // Create the enhanced main report with file sections
     const enhancedReportHtml = this.generateEnhancedMainReport(
       { totalLines, coveredLines, coverage, fileResults },
       prData,
-      fileSectionsHtml
+      fileSectionsHtml,
+      minimumCoverage
     );
     
     const mainReportPath = path.join(this.reportDir, 'index.html');
@@ -43,7 +44,7 @@ class HtmlReportGenerator {
   /**
    * Generate HTML sections for all files with expandable code views
    */
-  generateFileSectionsHtml(fileResults, changedLines, coverageData) {
+  generateFileSectionsHtml(fileResults, changedLines, coverageData, minimumCoverage) {
     return Object.entries(fileResults).map(([filePath, result]) => {
       const changedLinesSet = changedLines[filePath] || new Set();
       const fileCoverageData = this.findFileCoverageData(filePath, coverageData);
@@ -61,14 +62,14 @@ class HtmlReportGenerator {
       const lines = fileContent.split('\n');
       const fileId = filePath.replace(/[/\\]/g, '_').replace(/\./g, '_');
       
-      return this.generateFileSection(filePath, lines, changedLinesSet, result, fileCoverageData, fileId);
+      return this.generateFileSection(filePath, lines, changedLinesSet, result, fileCoverageData, fileId, minimumCoverage);
     }).join('');
   }
 
   /**
    * Generate enhanced main report with embedded file sections
    */
-  generateEnhancedMainReport(results, prData, fileSectionsHtml) {
+  generateEnhancedMainReport(results, prData, fileSectionsHtml, minimumCoverage) {
     const { totalLines, coveredLines, coverage, fileResults } = results;
     const timestamp = new Date().toISOString();
     
@@ -159,9 +160,8 @@ class HtmlReportGenerator {
             margin: 10px 0;
         }
         
-        .coverage-high { background-color: #28a745; color: white; }
-        .coverage-medium { background-color: #ffc107; color: #212529; }
-        .coverage-low { background-color: #dc3545; color: white; }
+        .coverage-pass { background-color: #28a745; color: white; }
+        .coverage-fail { background-color: #dc3545; color: white; }
         
         
         .file-section {
@@ -439,8 +439,8 @@ class HtmlReportGenerator {
             <div class="summary-card">
                 <h3>${coverage.toFixed(1)}%</h3>
                 <p>PR Diff Coverage</p>
-                <div class="coverage-badge ${this.getCoverageBadgeClass(coverage)}">
-                    ${this.getCoverageIcon(coverage)} ${coverage.toFixed(1)}%
+                <div class="coverage-badge ${this.getCoverageBadgeClass(coverage, minimumCoverage)}">
+                    ${this.getCoverageIcon(coverage, minimumCoverage)} ${coverage >= minimumCoverage ? 'PASS' : 'FAIL'}
                 </div>
                 <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
                     Changed lines only
@@ -635,7 +635,7 @@ class HtmlReportGenerator {
   /**
    * Generate individual expandable file section
    */
-  generateFileSection(filePath, lines, changedLinesSet, result, fileCoverageData, fileId) {
+  generateFileSection(filePath, lines, changedLinesSet, result, fileCoverageData, fileId, minimumCoverage) {
     const changedLines = Array.from(changedLinesSet || []);
     const linesToDisplay = this.getLinesToDisplay(changedLines, lines.length);
     
@@ -651,13 +651,13 @@ class HtmlReportGenerator {
         <div class="file-section" id="${fileId}">
             <div class="file-header" data-file="${fileId}" onclick="toggleFile('${fileId}')">
                 <div class="file-title">
-                    <span class="status-icon">${result.coverage >= 80 ? '✅' : result.coverage >= 50 ? '⚠️' : '❌'}</span>
+                    <span class="status-icon">${result.coverage >= minimumCoverage ? '✅' : '❌'}</span>
                     <span class="file-path">${filePath}</span>
                 </div>
                 <div class="file-stats">
                     <div class="coverage-bar">
-                        <div class="coverage-fill ${this.getCoverageBadgeClass(result.coverage)}" style="width: ${result.coverage}%"></div>
-                        <div class="coverage-text">${result.coverage.toFixed(0)}%</div>
+                        <div class="coverage-fill ${this.getCoverageBadgeClass(result.coverage, minimumCoverage)}" style="width: ${result.coverage}%"></div>
+                        <div class="coverage-text">${result.coverage >= minimumCoverage ? 'PASS' : 'FAIL'}</div>
                     </div>
                     <span>Changed: ${result.totalLines}</span>
                     <span>Covered: ${result.coveredLines}</span>
@@ -918,21 +918,17 @@ class HtmlReportGenerator {
   }
 
   /**
-   * Get coverage badge CSS class based on percentage
+   * Get coverage badge CSS class based on minimum threshold
    */
-  getCoverageBadgeClass(coverage) {
-    if (coverage >= 80) return 'coverage-high';
-    if (coverage >= 50) return 'coverage-medium';
-    return 'coverage-low';
+  getCoverageBadgeClass(coverage, minimumCoverage) {
+    return coverage >= minimumCoverage ? 'coverage-pass' : 'coverage-fail';
   }
 
   /**
-   * Get coverage icon based on percentage
+   * Get coverage icon based on minimum threshold
    */
-  getCoverageIcon(coverage) {
-    if (coverage >= 80) return '✅';
-    if (coverage >= 50) return '⚠️';
-    return '❌';
+  getCoverageIcon(coverage, minimumCoverage) {
+    return coverage >= minimumCoverage ? '✅' : '❌';
   }
 
   /**

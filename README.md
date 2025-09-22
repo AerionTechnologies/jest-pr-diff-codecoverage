@@ -156,7 +156,8 @@ This creates `coverage/coverage-final.json`.
 1. **Parse Coverage Data**: Reads your Jest coverage file (LCOV or JSON format)
 2. **Get PR Changes**: Uses GitHub API to get the exact lines changed in the PR
 3. **Calculate Coverage**: Determines coverage percentage for only the changed lines
-4. **Report Results**: Comments on the PR with detailed results and optionally fails the check
+4. **Evaluate Against Threshold**: Compares coverage against your minimum threshold for pass/fail status
+5. **Report Results**: Comments on the PR with detailed results and optionally fails the check
 
 ## Example Output
 
@@ -174,10 +175,10 @@ The action will post a comment on your PR like this:
 
 ### File Coverage Details
 
-| File | Coverage | Lines Changed | Lines Covered |
-|------|----------|---------------|---------------|
-| src/utils.js | ✅ 100.00% | 3 | 3 |
-| src/main.js | ✅ 75.00% | 4 | 3 |
+| File | Coverage | Status | Lines Changed | Lines Covered |
+|------|----------|--------|---------------|---------------|
+| src/utils.js | 100.00% | ✅ PASS | 3 | 3 |
+| src/main.js | 75.00% | ❌ FAIL | 4 | 3 |
 
 ---
 📁 **HTML Report Artifact:** `coverage-report-pr-123`
@@ -191,16 +192,16 @@ When `generate-html-report` is enabled, the action creates a beautiful, interact
 ### 📊 **Main Dashboard**
 - Overall coverage statistics with visual indicators
 - Coverage breakdown by file with progress bars
-- Color-coded status indicators (✅ High, ⚠️ Medium, ❌ Low coverage)
+- Simple pass/fail status indicators based on your minimum coverage threshold
 - Professional styling with modern UI components
 
 ### 📁 **Individual File Reports** 
 - Line-by-line coverage visualization
 - Highlighted changed lines in the PR
 - Color-coded coverage status:
-  - 🔄 **Changed Lines** (highlighted in yellow)
   - ✅ **Covered Lines** (highlighted in green) 
   - ❌ **Uncovered Lines** (highlighted in red)
+- Changed lines without coverage data appear as regular context lines
 - Syntax highlighting for better readability
 
 ### 🔗 **Easy Access**

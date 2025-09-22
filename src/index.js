@@ -299,7 +299,7 @@ async function run() {
           title: github.context.payload.pull_request.title
         };
         
-        const reportData = await htmlGenerator.generateReport(results, changedLines, prData, coverageData);
+        const reportData = await htmlGenerator.generateReport(results, changedLines, prData, coverageData, minimumCoverage);
         htmlReportInfo = await analyzer.uploadHtmlReportArtifact(reportData);
         
         core.info(`HTML report generated: ${reportData.mainReport}`);
