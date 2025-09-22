@@ -33204,17 +33204,12 @@ class CoverageAnalyzer {
    */
   async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null, updateExisting = false) {
     const { totalLines, coveredLines, coverage, fileResults } = results;
-
-    // Generate timestamp for the report
-    const reportTime = new Date().toISOString();
-    const reportTimeFormatted = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
-
+    
     let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
     
     comment += `**Overall Coverage:** ${coverage.toFixed(2)}% (${coveredLines}/${totalLines} lines covered)\n`;
     comment += `**Threshold:** ${threshold}%\n`;
-    comment += `**Status:** ${meetsThreshold ? '✅ Passed' : '❌ Failed'}\n`;
-    comment += `**Report Generated:** <relative-time datetime="${reportTime}">${reportTimeFormatted}</relative-time>\n\n`;
+    comment += `**Status:** ${meetsThreshold ? '✅ Passed' : '❌ Failed'}\n\n`;
 
     // Add HTML report link if available
     if (htmlReportInfo) {

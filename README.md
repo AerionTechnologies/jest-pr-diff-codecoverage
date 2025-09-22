@@ -63,12 +63,12 @@ jobs:
         fail-on-coverage-below-threshold: 'false'     # Don't fail, just report
         comment-on-pr: 'true'                         # Post detailed comment
         generate-html-report: 'true'                  # Generate HTML report
-        update-comment: 'true'                        # Update existing comment
+        update-comment: 'true'                        # Hide existing comment and create new
 ```
 
 ### Comment Update Behavior
 
-By default, the action creates a new comment on each run. To keep your PR comments clean, you can enable comment updating:
+By default, the action creates a new comment on each run. To keep your PR comments clean, you can enable comment hiding:
 
 ```yaml
     - name: Check PR Code Coverage
@@ -77,14 +77,14 @@ By default, the action creates a new comment on each run. To keep your PR commen
         coverage-file: 'coverage/lcov.info'
         minimum-coverage: '80'
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        update-comment: 'true'  # Update existing comment instead of creating new ones
+        update-comment: 'true'  # Hide existing comment and create new one
 ```
 
 When `update-comment` is enabled:
 - The action will look for an existing coverage comment from a previous run
-- If found, it will update that comment with the new coverage data
-- If no existing comment is found, it will create a new one
-- This helps keep PR conversations clean by avoiding multiple coverage comments
+- If found, it will hide that comment in a collapsible section and create a new one
+- If no existing comment is found, it will just create a new one
+- This keeps the latest coverage report prominent while preserving the history
 
 ### HTML Coverage Reports
 
@@ -120,7 +120,7 @@ To enable detailed HTML coverage reports with visual line-by-line analysis:
 | `fail-on-coverage-below-threshold` | Fail the action if coverage is below threshold | No | `true` |
 | `comment-on-pr` | Comment coverage results on the PR | No | `true` |
 | `generate-html-report` | Generate detailed HTML coverage report | No | `false` |
-| `update-comment` | Update existing coverage comment instead of creating new ones | No | `false` |
+| `update-comment` | Hide existing coverage comment and create new one instead of just creating new ones | No | `false` |
 
 ## Outputs
 
@@ -169,7 +169,6 @@ The action will post a comment on your PR like this:
 **Overall Coverage:** 85.71% (6/7 lines covered)
 **Threshold:** 80%
 **Status:** ✅ Passed
-**Report Generated:** <relative-time datetime="2024-01-15T14:30:25.000Z">2024-01-15 14:30:25 UTC</relative-time>
 
 📋 **[View Detailed HTML Coverage Report](#)**
 *The HTML report provides line-by-line coverage details for all changed files.*
