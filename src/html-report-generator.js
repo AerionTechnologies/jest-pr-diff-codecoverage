@@ -251,10 +251,6 @@ class HtmlReportGenerator {
             font-weight: 500;
         }
         
-        .legend-changed { 
-            background-color: #fff8dc; 
-            border: 1px solid #ffd33d;
-        }
         .legend-covered { 
             background-color: #e6ffed; 
             border: 1px solid #28a745;
@@ -304,22 +300,12 @@ class HtmlReportGenerator {
             overflow-x: auto;
         }
         
-        .line-changed {
-            background-color: #fff8dc;
-        }
-        
         .line-covered {
             background-color: #e6ffed;
         }
         
         .line-uncovered {
             background-color: #ffebe9;
-        }
-        
-        .line-changed .line-number {
-            background-color: #ffd33d;
-            color: #24292f;
-            font-weight: 600;
         }
         
         .line-covered .line-number {
@@ -492,10 +478,11 @@ class HtmlReportGenerator {
                 <strong style="font-size: 1.1em;">About This Report</strong>
             </div>
             <p style="margin: 0; line-height: 1.5;">
-                This report shows <strong>test coverage for changed lines only</strong>, not overall project coverage. 
-                It analyzes which lines modified in this PR are covered by tests. Lines highlighted in 
+                This report shows <strong>test coverage for changed lines that have coverage data</strong>, not overall project coverage. 
+                It analyzes which executable lines modified in this PR are covered by tests. Lines highlighted in 
                 <span style="background: #e6ffed; padding: 2px 4px; border-radius: 3px;">green</span> are covered by tests, 
                 while lines highlighted in <span style="background: #ffebe9; padding: 2px 4px; border-radius: 3px;">red</span> are not covered.
+                Changed lines without coverage data (comments, imports, etc.) appear without highlighting.
             </p>
         </div>
 
@@ -624,16 +611,13 @@ class HtmlReportGenerator {
       const isCovered = coverageMap.get(lineNumber);
       
       let lineClass = '';
-      if (isChanged) {
-        if (isCovered === true) {
-          lineClass = 'line-changed line-covered';
-        } else if (isCovered === false) {
-          lineClass = 'line-changed line-uncovered';
-        } else {
-          lineClass = 'line-changed'; // Changed but no coverage data
-        }
+      // Only highlight changed lines that have coverage data
+      if (isChanged && isCovered === true) {
+        lineClass = 'line-covered';
+      } else if (isChanged && isCovered === false) {
+        lineClass = 'line-uncovered';
       }
-      // Only highlight changed lines - don't highlight unchanged lines even if they have coverage data
+      // Changed lines without coverage data will have no special styling (appear as context)
       
       result += `
         <div class="line ${lineClass}">
@@ -685,10 +669,6 @@ class HtmlReportGenerator {
             <div class="file-content" data-file="${fileId}">
                 <div class="code-header">
                     <div class="legend">
-                        <div class="legend-item legend-changed">
-                            <span>🔄</span>
-                            <span>Changed Lines</span>
-                        </div>
                         <div class="legend-item legend-covered">
                             <span>✅</span>
                             <span>Covered</span>
@@ -839,22 +819,12 @@ class HtmlReportGenerator {
             overflow-x: auto;
         }
         
-        .line-changed {
-            background-color: #fff8dc;
-        }
-        
         .line-covered {
             background-color: #e6ffed;
         }
         
         .line-uncovered {
             background-color: #ffebe9;
-        }
-        
-        .line-changed .line-number {
-            background-color: #ffd33d;
-            color: #24292f;
-            font-weight: 600;
         }
         
         .line-covered .line-number {
@@ -921,7 +891,6 @@ class HtmlReportGenerator {
             font-size: 12px;
         }
         
-        .legend-changed { background-color: #fff8dc; }
         .legend-covered { background-color: #e6ffed; }
         .legend-uncovered { background-color: #ffebe9; }
     </style>
@@ -937,7 +906,6 @@ class HtmlReportGenerator {
     </div>
     
     <div class="legend">
-        <span class="legend-item legend-changed">🔄 Changed Lines</span>
         <span class="legend-item legend-covered">✅ Covered</span>
         <span class="legend-item legend-uncovered">❌ Uncovered</span>
     </div>
