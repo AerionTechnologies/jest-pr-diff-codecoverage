@@ -66,7 +66,7 @@ describe('HtmlReportGenerator', () => {
     });
   });
 
-  describe('generateMainReport', () => {
+  describe('generateEnhancedMainReport', () => {
     it('should create HTML with coverage statistics', () => {
       const mockResults = {
         totalLines: 10,
@@ -86,12 +86,14 @@ describe('HtmlReportGenerator', () => {
         title: 'Test PR'
       };
 
-      const html = generator.generateMainReport(mockResults, mockPrData);
+      const mockFileSectionsHtml = '<div>Mock file sections</div>';
+
+      const html = generator.generateEnhancedMainReport(mockResults, mockPrData, mockFileSectionsHtml);
 
       expect(html).toContain('80.0%');
-      expect(html).toContain('PR Code Coverage Report');
-      expect(html).toContain('src/test.js');
+      expect(html).toContain('PR Diff Coverage Report');
       expect(html).toContain('PR #123: Test PR');
+      expect(html).toContain('Mock file sections');
     });
 
     it('should handle empty file results', () => {
@@ -102,7 +104,9 @@ describe('HtmlReportGenerator', () => {
         fileResults: {}
       };
 
-      const html = generator.generateMainReport(mockResults, null);
+      const mockFileSectionsHtml = '';
+
+      const html = generator.generateEnhancedMainReport(mockResults, null, mockFileSectionsHtml);
 
       expect(html).toContain('No files with changed lines found');
       expect(html).toContain('100.0%');
