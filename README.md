@@ -169,6 +169,7 @@ The action will post a comment on your PR like this:
 **Overall Coverage:** 85.71% (6/7 lines covered)
 **Threshold:** 80%
 **Status:** ✅ Passed
+**Report Generated:** <relative-time datetime="2024-01-15T14:30:25.000Z">2024-01-15 14:30:25 UTC</relative-time>
 
 📋 **[View Detailed HTML Coverage Report](#)**
 *The HTML report provides line-by-line coverage details for all changed files.*
