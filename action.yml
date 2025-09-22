@@ -15,7 +15,7 @@ inputs:
     description: 'GitHub token for API access'
     required: true
     default: ${{ github.token }}
-  fail-on-coverage-decrease:
+  fail-on-coverage-below-threshold:
     description: 'Whether to fail the action if coverage is below threshold'
     required: false
     default: 'true'

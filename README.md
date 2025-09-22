@@ -60,7 +60,7 @@ jobs:
         coverage-file: 'coverage/coverage-final.json'  # Use Jest JSON format
         minimum-coverage: '85'                         # Require 85% coverage
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        fail-on-coverage-decrease: 'false'            # Don't fail, just report
+        fail-on-coverage-below-threshold: 'false'     # Don't fail, just report
         comment-on-pr: 'true'                         # Post detailed comment
         generate-html-report: 'true'                  # Generate HTML report
         update-comment: 'true'                        # Update existing comment
@@ -117,7 +117,7 @@ To enable detailed HTML coverage reports with visual line-by-line analysis:
 | `coverage-file` | Path to Jest coverage file (LCOV or JSON format) | Yes | `coverage/lcov.info` |
 | `minimum-coverage` | Minimum code coverage percentage (0-100) | Yes | `80` |
 | `github-token` | GitHub token for API access | Yes | `${{ github.token }}` |
-| `fail-on-coverage-decrease` | Fail the action if coverage is below threshold | No | `true` |
+| `fail-on-coverage-below-threshold` | Fail the action if coverage is below threshold | No | `true` |
 | `comment-on-pr` | Comment coverage results on the PR | No | `true` |
 | `generate-html-report` | Generate detailed HTML coverage report | No | `false` |
 | `update-comment` | Update existing coverage comment instead of creating new ones | No | `false` |

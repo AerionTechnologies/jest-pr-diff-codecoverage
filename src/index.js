@@ -239,7 +239,7 @@ async function run() {
   try {
     const coverageFilePath = core.getInput('coverage-file');
     const minimumCoverage = parseFloat(core.getInput('minimum-coverage'));
-    const failOnDecrease = core.getInput('fail-on-coverage-decrease') === 'true';
+    const failOnBelowThreshold = core.getInput('fail-on-coverage-below-threshold') === 'true';
     const commentOnPr = core.getInput('comment-on-pr') === 'true';
     const generateHtmlReport = core.getInput('generate-html-report') === 'true';
     const updateComment = core.getInput('update-comment') === 'true';
@@ -315,7 +315,7 @@ async function run() {
     }
 
     // Fail if coverage is below threshold
-    if (!meetsThreshold && failOnDecrease) {
+    if (!meetsThreshold && failOnBelowThreshold) {
       core.setFailed(
         `Code coverage of changed lines (${results.coverage.toFixed(2)}%) is below the required threshold (${minimumCoverage}%)`
       );
