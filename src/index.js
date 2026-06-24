@@ -3,6 +3,7 @@ const github = require('@actions/github');
 const fs = require('fs');
 const CoverageParser = require('./coverage-parser');
 const HtmlReportGenerator = require('./html-report-generator');
+const { calculateChangedLinesCoverage } = require('./changed-lines-coverage');
 
 class CoverageAnalyzer {
   constructor() {
@@ -60,52 +61,7 @@ class CoverageAnalyzer {
    * Calculate coverage for changed lines
    */
   calculateChangedLinesCoverage(coverageData, changedLines) {
-    let totalChangedLines = 0;
-    let coveredChangedLines = 0;
-    const fileResults = {};
-
-    for (const file of coverageData) {
-      const normalizedPath = file.file.replace(/^\.\//, '');
-      const changedLinesInFile = changedLines[normalizedPath];
-
-      if (!changedLinesInFile || changedLinesInFile.size === 0) {
-        continue;
-      }
-
-      let fileCoveredLines = 0;
-      let fileTotalLines = 0;
-
-      if (file.lines && file.lines.details) {
-        for (const lineInfo of file.lines.details) {
-          if (changedLinesInFile.has(lineInfo.line)) {
-            fileTotalLines++;
-            totalChangedLines++;
-            
-            if (lineInfo.hit > 0) {
-              fileCoveredLines++;
-              coveredChangedLines++;
-            }
-          }
-        }
-      }
-
-      if (fileTotalLines > 0) {
-        fileResults[normalizedPath] = {
-          totalLines: fileTotalLines,
-          coveredLines: fileCoveredLines,
-          coverage: (fileCoveredLines / fileTotalLines) * 100
-        };
-      }
-    }
-
-    const overallCoverage = totalChangedLines > 0 ? (coveredChangedLines / totalChangedLines) * 100 : 100;
-
-    return {
-      totalLines: totalChangedLines,
-      coveredLines: coveredChangedLines,
-      coverage: overallCoverage,
-      fileResults: fileResults
-    };
+    return calculateChangedLinesCoverage(coverageData, changedLines);
   }
 
   /**
@@ -166,7 +122,7 @@ class CoverageAnalyzer {
    * Create PR comment with coverage results
    */
   async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null, updateExisting = false) {
-    const { totalLines, coveredLines, coverage, fileResults } = results;
+    const { totalLines, coveredLines, coverage, fileResults, missingFromCoverage = [] } = results;
     
     let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
     
@@ -189,6 +145,20 @@ class CoverageAnalyzer {
         const icon = result.coverage >= threshold ? '✅' : '❌';
         comment += `| ${file} | ${icon} ${result.coverage.toFixed(2)}% | ${result.totalLines} | ${result.coveredLines} |\n`;
       }
+    }
+
+    if (missingFromCoverage.length > 0) {
+      comment += `\n### Files Not in Coverage Report\n\n`;
+      comment += `These PR changed files were not found in the coverage file and could not be analyzed:\n\n`;
+      comment += `| File | Lines Changed in Diff |\n`;
+      comment += `|------|----------------------|\n`;
+
+      for (const { file, changedLines: changedLineCount } of missingFromCoverage) {
+        const linesLabel = changedLineCount > 0 ? changedLineCount : '—';
+        comment += `| ${file} | ${linesLabel} |\n`;
+      }
+
+      comment += `\n> These files may be excluded from Jest \`collectCoverageFrom\`, not imported by any test, or use a path that does not match the coverage file.\n`;
     }
 
     if (!meetsThreshold) {
@@ -286,6 +256,12 @@ async function run() {
     core.info(`Coverage of changed lines: ${results.coverage.toFixed(2)}%`);
     core.info(`Lines covered: ${results.coveredLines}/${results.totalLines}`);
     core.info(`Meets threshold (${minimumCoverage}%): ${meetsThreshold}`);
+    if (results.missingFromCoverage.length > 0) {
+      core.info(`Files not in coverage report: ${results.missingFromCoverage.length}`);
+      for (const { file } of results.missingFromCoverage) {
+        core.info(`  - ${file}`);
+      }
+    }
 
     // Generate HTML report if enabled
     let htmlReportInfo = null;
@@ -337,4 +313,8 @@ async function run() {
   }
 }
 
-run();
+module.exports = { CoverageAnalyzer };
+
+if (require.main === module) {
+  run();
+}

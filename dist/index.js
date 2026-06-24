@@ -30055,6 +30055,79 @@ function wrappy (fn, cb) {
 
 /***/ }),
 
+/***/ 3826:
+/***/ ((module) => {
+
+/**
+ * Calculate PR diff coverage from parsed coverage data and changed line sets.
+ */
+function calculateChangedLinesCoverage(coverageData, changedLines) {
+  let totalChangedLines = 0;
+  let coveredChangedLines = 0;
+  const fileResults = {};
+
+  const coverageFiles = new Set(
+    coverageData.map(file => file.file.replace(/^\.\//, ''))
+  );
+
+  for (const file of coverageData) {
+    const normalizedPath = file.file.replace(/^\.\//, '');
+    const changedLinesInFile = changedLines[normalizedPath];
+
+    if (!changedLinesInFile || changedLinesInFile.size === 0) {
+      continue;
+    }
+
+    let fileCoveredLines = 0;
+    let fileTotalLines = 0;
+
+    if (file.lines && file.lines.details) {
+      for (const lineInfo of file.lines.details) {
+        if (changedLinesInFile.has(lineInfo.line)) {
+          fileTotalLines++;
+          totalChangedLines++;
+
+          if (lineInfo.hit > 0) {
+            fileCoveredLines++;
+            coveredChangedLines++;
+          }
+        }
+      }
+    }
+
+    if (fileTotalLines > 0) {
+      fileResults[normalizedPath] = {
+        totalLines: fileTotalLines,
+        coveredLines: fileCoveredLines,
+        coverage: (fileCoveredLines / fileTotalLines) * 100
+      };
+    }
+  }
+
+  const missingFromCoverage = Object.entries(changedLines)
+    .filter(([filePath]) => !coverageFiles.has(filePath))
+    .map(([file, linesSet]) => ({
+      file,
+      changedLines: linesSet.size
+    }))
+    .sort((a, b) => a.file.localeCompare(b.file));
+
+  const overallCoverage = totalChangedLines > 0 ? (coveredChangedLines / totalChangedLines) * 100 : 100;
+
+  return {
+    totalLines: totalChangedLines,
+    coveredLines: coveredChangedLines,
+    coverage: overallCoverage,
+    fileResults,
+    missingFromCoverage
+  };
+}
+
+module.exports = { calculateChangedLinesCoverage };
+
+
+/***/ }),
+
 /***/ 103:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -30238,12 +30311,57 @@ class HtmlReportGenerator {
   }
 
   /**
+   * Generate HTML section for PR files missing from the coverage report
+   */
+  generateMissingFromCoverageSection(missingFromCoverage) {
+    if (!missingFromCoverage || missingFromCoverage.length === 0) {
+      return '';
+    }
+
+    const rows = missingFromCoverage.map(({ file, changedLines }) => `
+            <tr>
+                <td><code>${this.escapeHtml(file)}</code></td>
+                <td>${changedLines > 0 ? changedLines : '—'}</td>
+            </tr>
+        `).join('');
+
+    return `
+        <div class="missing-coverage-section">
+            <div class="missing-coverage-header">
+                <span class="missing-coverage-icon">⚠️</span>
+                <div>
+                    <h2>Files Not in Coverage Report</h2>
+                    <p>These PR changed files were not found in the coverage file and could not be analyzed.</p>
+                </div>
+            </div>
+            <table class="missing-coverage-table">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Lines Changed in Diff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+            <p class="missing-coverage-note">
+                These files may be excluded from Jest <code>collectCoverageFrom</code>, not imported by any test,
+                or use a path that does not match the coverage file.
+            </p>
+        </div>`;
+  }
+
+  /**
    * Generate enhanced main report with embedded file sections
    */
   generateEnhancedMainReport(results, prData, fileSectionsHtml, minimumCoverage) {
-    const { totalLines, coveredLines, coverage, fileResults } = results;
+    const { totalLines, coveredLines, coverage, fileResults, missingFromCoverage = [] } = results;
     const timestamp = new Date().toISOString();
-    
+    const missingFromCoverageHtml = this.generateMissingFromCoverageSection(missingFromCoverage);
+    const analyzedFileCount = Object.keys(fileResults).length;
+    const hasTrackableFiles = analyzedFileCount > 0;
+    const hasMissingFiles = missingFromCoverage.length > 0;
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -30592,6 +30710,75 @@ class HtmlReportGenerator {
         .scroll-top.visible {
             display: block;
         }
+
+        .missing-coverage-section {
+            margin: 20px 30px 30px;
+            border: 1px solid #f0c36d;
+            border-radius: 8px;
+            background: #fff8e6;
+            overflow: hidden;
+        }
+
+        .missing-coverage-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 20px 24px 0;
+        }
+
+        .missing-coverage-icon {
+            font-size: 1.5em;
+            line-height: 1;
+        }
+
+        .missing-coverage-header h2 {
+            font-size: 1.2em;
+            margin-bottom: 6px;
+            color: #735c0f;
+        }
+
+        .missing-coverage-header p {
+            margin: 0;
+            color: #6a737d;
+        }
+
+        .missing-coverage-table {
+            width: calc(100% - 48px);
+            margin: 16px 24px 0;
+            border-collapse: collapse;
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .missing-coverage-table th,
+        .missing-coverage-table td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e1e4e8;
+        }
+
+        .missing-coverage-table th {
+            background: #fffbf0;
+            color: #735c0f;
+            font-weight: 600;
+        }
+
+        .missing-coverage-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .missing-coverage-note {
+            margin: 16px 24px 20px;
+            color: #6a737d;
+            font-size: 0.92em;
+            line-height: 1.5;
+        }
+
+        .summary-card.warning h3 {
+            color: #b08800;
+        }
     </style>
 </head>
 <body>
@@ -30635,10 +30822,18 @@ class HtmlReportGenerator {
             </div>
             
             <div class="summary-card">
-                <h3>${Object.keys(fileResults).length}</h3>
-                <p>Files Modified</p>
+                <h3>${analyzedFileCount}</h3>
+                <p>Files With Coverage Data</p>
                 <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
-                    Files with changes
+                    Changed files found in coverage report
+                </div>
+            </div>
+
+            <div class="summary-card${hasMissingFiles ? ' warning' : ''}">
+                <h3>${missingFromCoverage.length}</h3>
+                <p>Not in Coverage File</p>
+                <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
+                    Changed PR files missing from coverage
                 </div>
             </div>
         </div>
@@ -30657,14 +30852,16 @@ class HtmlReportGenerator {
             </p>
         </div>
 
-        ${Object.keys(fileResults).length > 0 ? `
+        ${hasTrackableFiles ? `
         ${fileSectionsHtml}
-        ` : `
+        ` : (!hasMissingFiles ? `
         <div style="text-align: center; padding: 60px 20px; color: #586069;">
-            <h3>🎉 No files with changed lines found</h3>
-            <p>Either no files were modified, or the modifications don't include executable code.</p>
+            <h3>No trackable changed lines found</h3>
+            <p>Either no files were modified, or none of the changed lines have coverage data.</p>
         </div>
-        `}
+        ` : '')}
+
+        ${missingFromCoverageHtml}
 
         <div class="footer">
             <p>Generated by Jest PR Diff Code Coverage • ${timestamp}</p>
@@ -31127,6 +31324,333 @@ class HtmlReportGenerator {
 }
 
 module.exports = HtmlReportGenerator;
+
+
+/***/ }),
+
+/***/ 5105:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const core = __nccwpck_require__(7484);
+const github = __nccwpck_require__(3228);
+const fs = __nccwpck_require__(9896);
+const CoverageParser = __nccwpck_require__(103);
+const HtmlReportGenerator = __nccwpck_require__(7207);
+const { calculateChangedLinesCoverage } = __nccwpck_require__(3826);
+
+class CoverageAnalyzer {
+  constructor() {
+    this.token = core.getInput('github-token');
+    this.octokit = github.getOctokit(this.token);
+    this.context = github.context;
+  }
+
+
+  /**
+   * Get PR files and their changed lines
+   */
+  async getPrChangedLines() {
+    const { data: files } = await this.octokit.rest.pulls.listFiles({
+      owner: this.context.repo.owner,
+      repo: this.context.repo.repo,
+      pull_number: this.context.payload.pull_request.number
+    });
+
+    const changedLines = {};
+
+    for (const file of files) {
+      if (file.status === 'removed') continue;
+      
+      const filename = file.filename;
+      changedLines[filename] = new Set();
+
+      if (file.patch) {
+        const lines = file.patch.split('\n');
+        let currentLine = 0;
+
+        for (const line of lines) {
+          if (line.startsWith('@@')) {
+            // Parse hunk header: @@ -start,count +start,count @@
+            const match = line.match(/\+(\d+)/);
+            if (match) {
+              currentLine = parseInt(match[1]);
+            }
+          } else if (line.startsWith('+') && !line.startsWith('+++')) {
+            // This is an added line
+            changedLines[filename].add(currentLine);
+            currentLine++;
+          } else if (!line.startsWith('-') && !line.startsWith('\\')) {
+            // This is a context line (unchanged)
+            currentLine++;
+          }
+        }
+      }
+    }
+
+    return changedLines;
+  }
+
+  /**
+   * Calculate coverage for changed lines
+   */
+  calculateChangedLinesCoverage(coverageData, changedLines) {
+    return calculateChangedLinesCoverage(coverageData, changedLines);
+  }
+
+  /**
+   * Upload HTML coverage report as GitHub Actions artifact
+   */
+  async uploadHtmlReportArtifact(reportData) {
+    try {
+      const artifactName = `coverage-report-pr-${this.context.payload.pull_request.number}`;
+      
+      // Use GitHub's upload-artifact action via REST API
+      core.info(`Uploading HTML coverage report and coverage file as artifact: ${artifactName}`);
+      
+      // Set output for the artifact path so it can be used by upload-artifact action
+      core.setOutput('html-report-path', reportData.reportDir);
+      core.setOutput('html-report-artifact-name', artifactName);
+      
+      // Generate URL to the workflow run's artifacts page
+      const runId = this.context.runId;
+      const repo = this.context.repo;
+      const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
+      
+      return {
+        artifactName,
+        reportPath: reportData.reportDir,
+        mainReportFile: reportData.mainReport,
+        downloadUrl: artifactsUrl
+      };
+    } catch (error) {
+      core.warning(`Failed to prepare HTML report artifact: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Find existing coverage comment by this action
+   */
+  async findExistingCoverageComment() {
+    try {
+      const { data: comments } = await this.octokit.rest.issues.listComments({
+        owner: this.context.repo.owner,
+        repo: this.context.repo.repo,
+        issue_number: this.context.payload.pull_request.number
+      });
+
+      // Look for comments that contain our coverage report header
+      const coverageComment = comments.find(comment => 
+        comment.body.includes('## 📊 Code Coverage Report for Changed Lines')
+      );
+
+      return coverageComment || null;
+    } catch (error) {
+      core.warning(`Failed to find existing coverage comment: ${error.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Create PR comment with coverage results
+   */
+  async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null, updateExisting = false) {
+    const { totalLines, coveredLines, coverage, fileResults, missingFromCoverage = [] } = results;
+    
+    let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
+    
+    comment += `**Overall Coverage:** ${coverage.toFixed(2)}% (${coveredLines}/${totalLines} lines covered)\n`;
+    comment += `**Threshold:** ${threshold}%\n`;
+    comment += `**Status:** ${meetsThreshold ? '✅ Passed' : '❌ Failed'}\n\n`;
+
+    // Add HTML report link if available
+    if (htmlReportInfo) {
+      comment += `📋 **[View Detailed HTML Coverage Report](${htmlReportInfo.downloadUrl || '#'})**\n`;
+      comment += `*Click the link above to view the workflow run and download the \`${htmlReportInfo.artifactName}\` artifact for detailed line-by-line coverage analysis and the original coverage file.*\n\n`;
+    }
+
+    if (Object.keys(fileResults).length > 0) {
+      comment += `### File Coverage Details\n\n`;
+      comment += `| File | Coverage | Lines Changed | Lines Covered |\n`;
+      comment += `|------|----------|---------------|---------------|\n`;
+
+      for (const [file, result] of Object.entries(fileResults)) {
+        const icon = result.coverage >= threshold ? '✅' : '❌';
+        comment += `| ${file} | ${icon} ${result.coverage.toFixed(2)}% | ${result.totalLines} | ${result.coveredLines} |\n`;
+      }
+    }
+
+    if (missingFromCoverage.length > 0) {
+      comment += `\n### Files Not in Coverage Report\n\n`;
+      comment += `These PR changed files were not found in the coverage file and could not be analyzed:\n\n`;
+      comment += `| File | Lines Changed in Diff |\n`;
+      comment += `|------|----------------------|\n`;
+
+      for (const { file, changedLines: changedLineCount } of missingFromCoverage) {
+        const linesLabel = changedLineCount > 0 ? changedLineCount : '—';
+        comment += `| ${file} | ${linesLabel} |\n`;
+      }
+
+      comment += `\n> These files may be excluded from Jest \`collectCoverageFrom\`, not imported by any test, or use a path that does not match the coverage file.\n`;
+    }
+
+    if (!meetsThreshold) {
+      comment += `\n⚠️ **The coverage of changed lines (${coverage.toFixed(2)}%) is below the required threshold (${threshold}%).**\n`;
+      comment += `Please add tests to cover the new/modified code.`;
+    }
+
+    if (htmlReportInfo) {
+      comment += `\n\n---\n📁 **HTML Report Artifact:** \`${htmlReportInfo.artifactName}\`\n`;
+      comment += `The detailed HTML coverage report and original coverage file are available as a downloadable artifact in the [workflow run](${htmlReportInfo.downloadUrl}). `;
+      comment += `Once the workflow completes, you can download the artifact to view comprehensive coverage details.`;
+    }
+
+    try {
+      if (updateExisting) {
+        // Try to find and update existing comment
+        const existingComment = await this.findExistingCoverageComment();
+        
+        if (existingComment) {
+          await this.octokit.rest.issues.updateComment({
+            owner: this.context.repo.owner,
+            repo: this.context.repo.repo,
+            comment_id: existingComment.id,
+            body: comment
+          });
+          core.info(`Updated existing PR comment (ID: ${existingComment.id})`);
+          return;
+        } else {
+          core.info('No existing coverage comment found, creating new one');
+        }
+      }
+
+      // Create new comment (either when updateExisting is false or no existing comment found)
+      await this.octokit.rest.issues.createComment({
+        owner: this.context.repo.owner,
+        repo: this.context.repo.repo,
+        issue_number: this.context.payload.pull_request.number,
+        body: comment
+      });
+      core.info('Created new PR comment');
+    } catch (error) {
+      core.warning(`Failed to ${updateExisting ? 'update' : 'create'} PR comment: ${error.message}`);
+    }
+  }
+}
+
+async function run() {
+  try {
+    const coverageFilePath = core.getInput('coverage-file');
+    const minimumCoverage = parseFloat(core.getInput('minimum-coverage'));
+    const failOnBelowThreshold = core.getInput('fail-on-coverage-below-threshold') === 'true';
+    const commentOnPr = core.getInput('comment-on-pr') === 'true';
+    const generateHtmlReport = core.getInput('generate-html-report') === 'true';
+    const updateComment = core.getInput('update-comment') === 'true';
+
+    core.info(`Coverage file: ${coverageFilePath}`);
+    core.info(`Minimum coverage: ${minimumCoverage}%`);
+    core.info(`Generate HTML report: ${generateHtmlReport}`);
+    core.info(`Update comment: ${updateComment}`);
+
+    // Check if we're in a PR context
+    if (!github.context.payload.pull_request) {
+      core.setFailed('This action can only be run on pull requests');
+      return;
+    }
+
+    // Check if coverage file exists
+    if (!fs.existsSync(coverageFilePath)) {
+      core.setFailed(`Coverage file not found: ${coverageFilePath}`);
+      return;
+    }
+
+    const analyzer = new CoverageAnalyzer();
+
+    // Parse coverage data
+    core.info('Parsing coverage data...');
+    const coverageData = await CoverageParser.parse(coverageFilePath);
+
+    // Get changed lines in PR
+    core.info('Getting PR changed lines...');
+    const changedLines = await analyzer.getPrChangedLines();
+
+    // Calculate coverage for changed lines
+    core.info('Calculating coverage for changed lines...');
+    const results = analyzer.calculateChangedLinesCoverage(coverageData, changedLines);
+
+    // Set outputs
+    core.setOutput('coverage-percentage', results.coverage.toFixed(2));
+    core.setOutput('lines-covered', results.coveredLines);
+    core.setOutput('total-lines', results.totalLines);
+    const meetsThreshold = results.coverage >= minimumCoverage;
+    core.setOutput('meets-threshold', meetsThreshold);
+
+    // Log results
+    core.info(`Coverage of changed lines: ${results.coverage.toFixed(2)}%`);
+    core.info(`Lines covered: ${results.coveredLines}/${results.totalLines}`);
+    core.info(`Meets threshold (${minimumCoverage}%): ${meetsThreshold}`);
+    if (results.missingFromCoverage.length > 0) {
+      core.info(`Files not in coverage report: ${results.missingFromCoverage.length}`);
+      for (const { file } of results.missingFromCoverage) {
+        core.info(`  - ${file}`);
+      }
+    }
+
+    // Generate HTML report if enabled
+    let htmlReportInfo = null;
+    if (generateHtmlReport) {
+      try {
+        core.info('Generating HTML coverage report...');
+        const htmlGenerator = new HtmlReportGenerator();
+        
+        const prData = {
+          number: github.context.payload.pull_request.number,
+          title: github.context.payload.pull_request.title
+        };
+        
+        const reportData = await htmlGenerator.generateReport(
+          results,
+          changedLines,
+          prData,
+          coverageData,
+          minimumCoverage,
+          coverageFilePath
+        );
+        htmlReportInfo = await analyzer.uploadHtmlReportArtifact(reportData);
+        
+        core.info(`HTML report generated: ${reportData.mainReport}`);
+        if (reportData.coverageFile) {
+          core.info(`Coverage file included in artifact: ${reportData.coverageFile}`);
+        }
+      } catch (error) {
+        core.warning(`Failed to generate HTML report: ${error.message}`);
+      }
+    }
+
+    // Create PR comment if enabled
+    if (commentOnPr) {
+      core.info(updateComment ? 'Creating/updating PR comment...' : 'Creating PR comment...');
+      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold, htmlReportInfo, updateComment);
+    }
+
+    // Fail if coverage is below threshold
+    if (!meetsThreshold && failOnBelowThreshold) {
+      core.setFailed(
+        `Code coverage of changed lines (${results.coverage.toFixed(2)}%) is below the required threshold (${minimumCoverage}%)`
+      );
+    }
+
+  } catch (error) {
+    core.setFailed(`Action failed: ${error.message}`);
+    core.debug(error.stack);
+  }
+}
+
+module.exports = { CoverageAnalyzer };
+
+if (require.main === require.cache[eval('__filename')]) {
+  run();
+}
 
 
 /***/ }),
@@ -33042,349 +33566,13 @@ module.exports = parseParams
 /******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
 /******/ 	
 /************************************************************************/
-var __webpack_exports__ = {};
-const core = __nccwpck_require__(7484);
-const github = __nccwpck_require__(3228);
-const fs = __nccwpck_require__(9896);
-const CoverageParser = __nccwpck_require__(103);
-const HtmlReportGenerator = __nccwpck_require__(7207);
-
-class CoverageAnalyzer {
-  constructor() {
-    this.token = core.getInput('github-token');
-    this.octokit = github.getOctokit(this.token);
-    this.context = github.context;
-  }
-
-
-  /**
-   * Get PR files and their changed lines
-   */
-  async getPrChangedLines() {
-    const { data: files } = await this.octokit.rest.pulls.listFiles({
-      owner: this.context.repo.owner,
-      repo: this.context.repo.repo,
-      pull_number: this.context.payload.pull_request.number
-    });
-
-    const changedLines = {};
-
-    for (const file of files) {
-      if (file.status === 'removed') continue;
-      
-      const filename = file.filename;
-      changedLines[filename] = new Set();
-
-      if (file.patch) {
-        const lines = file.patch.split('\n');
-        let currentLine = 0;
-
-        for (const line of lines) {
-          if (line.startsWith('@@')) {
-            // Parse hunk header: @@ -start,count +start,count @@
-            const match = line.match(/\+(\d+)/);
-            if (match) {
-              currentLine = parseInt(match[1]);
-            }
-          } else if (line.startsWith('+') && !line.startsWith('+++')) {
-            // This is an added line
-            changedLines[filename].add(currentLine);
-            currentLine++;
-          } else if (!line.startsWith('-') && !line.startsWith('\\')) {
-            // This is a context line (unchanged)
-            currentLine++;
-          }
-        }
-      }
-    }
-
-    return changedLines;
-  }
-
-  /**
-   * Calculate coverage for changed lines
-   */
-  calculateChangedLinesCoverage(coverageData, changedLines) {
-    let totalChangedLines = 0;
-    let coveredChangedLines = 0;
-    const fileResults = {};
-
-    for (const file of coverageData) {
-      const normalizedPath = file.file.replace(/^\.\//, '');
-      const changedLinesInFile = changedLines[normalizedPath];
-
-      if (!changedLinesInFile || changedLinesInFile.size === 0) {
-        continue;
-      }
-
-      let fileCoveredLines = 0;
-      let fileTotalLines = 0;
-
-      if (file.lines && file.lines.details) {
-        for (const lineInfo of file.lines.details) {
-          if (changedLinesInFile.has(lineInfo.line)) {
-            fileTotalLines++;
-            totalChangedLines++;
-            
-            if (lineInfo.hit > 0) {
-              fileCoveredLines++;
-              coveredChangedLines++;
-            }
-          }
-        }
-      }
-
-      if (fileTotalLines > 0) {
-        fileResults[normalizedPath] = {
-          totalLines: fileTotalLines,
-          coveredLines: fileCoveredLines,
-          coverage: (fileCoveredLines / fileTotalLines) * 100
-        };
-      }
-    }
-
-    const overallCoverage = totalChangedLines > 0 ? (coveredChangedLines / totalChangedLines) * 100 : 100;
-
-    return {
-      totalLines: totalChangedLines,
-      coveredLines: coveredChangedLines,
-      coverage: overallCoverage,
-      fileResults: fileResults
-    };
-  }
-
-  /**
-   * Upload HTML coverage report as GitHub Actions artifact
-   */
-  async uploadHtmlReportArtifact(reportData) {
-    try {
-      const artifactName = `coverage-report-pr-${this.context.payload.pull_request.number}`;
-      
-      // Use GitHub's upload-artifact action via REST API
-      core.info(`Uploading HTML coverage report and coverage file as artifact: ${artifactName}`);
-      
-      // Set output for the artifact path so it can be used by upload-artifact action
-      core.setOutput('html-report-path', reportData.reportDir);
-      core.setOutput('html-report-artifact-name', artifactName);
-      
-      // Generate URL to the workflow run's artifacts page
-      const runId = this.context.runId;
-      const repo = this.context.repo;
-      const artifactsUrl = `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${runId}`;
-      
-      return {
-        artifactName,
-        reportPath: reportData.reportDir,
-        mainReportFile: reportData.mainReport,
-        downloadUrl: artifactsUrl
-      };
-    } catch (error) {
-      core.warning(`Failed to prepare HTML report artifact: ${error.message}`);
-      return null;
-    }
-  }
-
-  /**
-   * Find existing coverage comment by this action
-   */
-  async findExistingCoverageComment() {
-    try {
-      const { data: comments } = await this.octokit.rest.issues.listComments({
-        owner: this.context.repo.owner,
-        repo: this.context.repo.repo,
-        issue_number: this.context.payload.pull_request.number
-      });
-
-      // Look for comments that contain our coverage report header
-      const coverageComment = comments.find(comment => 
-        comment.body.includes('## 📊 Code Coverage Report for Changed Lines')
-      );
-
-      return coverageComment || null;
-    } catch (error) {
-      core.warning(`Failed to find existing coverage comment: ${error.message}`);
-      return null;
-    }
-  }
-
-  /**
-   * Create PR comment with coverage results
-   */
-  async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null, updateExisting = false) {
-    const { totalLines, coveredLines, coverage, fileResults } = results;
-    
-    let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
-    
-    comment += `**Overall Coverage:** ${coverage.toFixed(2)}% (${coveredLines}/${totalLines} lines covered)\n`;
-    comment += `**Threshold:** ${threshold}%\n`;
-    comment += `**Status:** ${meetsThreshold ? '✅ Passed' : '❌ Failed'}\n\n`;
-
-    // Add HTML report link if available
-    if (htmlReportInfo) {
-      comment += `📋 **[View Detailed HTML Coverage Report](${htmlReportInfo.downloadUrl || '#'})**\n`;
-      comment += `*Click the link above to view the workflow run and download the \`${htmlReportInfo.artifactName}\` artifact for detailed line-by-line coverage analysis and the original coverage file.*\n\n`;
-    }
-
-    if (Object.keys(fileResults).length > 0) {
-      comment += `### File Coverage Details\n\n`;
-      comment += `| File | Coverage | Lines Changed | Lines Covered |\n`;
-      comment += `|------|----------|---------------|---------------|\n`;
-
-      for (const [file, result] of Object.entries(fileResults)) {
-        const icon = result.coverage >= threshold ? '✅' : '❌';
-        comment += `| ${file} | ${icon} ${result.coverage.toFixed(2)}% | ${result.totalLines} | ${result.coveredLines} |\n`;
-      }
-    }
-
-    if (!meetsThreshold) {
-      comment += `\n⚠️ **The coverage of changed lines (${coverage.toFixed(2)}%) is below the required threshold (${threshold}%).**\n`;
-      comment += `Please add tests to cover the new/modified code.`;
-    }
-
-    if (htmlReportInfo) {
-      comment += `\n\n---\n📁 **HTML Report Artifact:** \`${htmlReportInfo.artifactName}\`\n`;
-      comment += `The detailed HTML coverage report and original coverage file are available as a downloadable artifact in the [workflow run](${htmlReportInfo.downloadUrl}). `;
-      comment += `Once the workflow completes, you can download the artifact to view comprehensive coverage details.`;
-    }
-
-    try {
-      if (updateExisting) {
-        // Try to find and update existing comment
-        const existingComment = await this.findExistingCoverageComment();
-        
-        if (existingComment) {
-          await this.octokit.rest.issues.updateComment({
-            owner: this.context.repo.owner,
-            repo: this.context.repo.repo,
-            comment_id: existingComment.id,
-            body: comment
-          });
-          core.info(`Updated existing PR comment (ID: ${existingComment.id})`);
-          return;
-        } else {
-          core.info('No existing coverage comment found, creating new one');
-        }
-      }
-
-      // Create new comment (either when updateExisting is false or no existing comment found)
-      await this.octokit.rest.issues.createComment({
-        owner: this.context.repo.owner,
-        repo: this.context.repo.repo,
-        issue_number: this.context.payload.pull_request.number,
-        body: comment
-      });
-      core.info('Created new PR comment');
-    } catch (error) {
-      core.warning(`Failed to ${updateExisting ? 'update' : 'create'} PR comment: ${error.message}`);
-    }
-  }
-}
-
-async function run() {
-  try {
-    const coverageFilePath = core.getInput('coverage-file');
-    const minimumCoverage = parseFloat(core.getInput('minimum-coverage'));
-    const failOnBelowThreshold = core.getInput('fail-on-coverage-below-threshold') === 'true';
-    const commentOnPr = core.getInput('comment-on-pr') === 'true';
-    const generateHtmlReport = core.getInput('generate-html-report') === 'true';
-    const updateComment = core.getInput('update-comment') === 'true';
-
-    core.info(`Coverage file: ${coverageFilePath}`);
-    core.info(`Minimum coverage: ${minimumCoverage}%`);
-    core.info(`Generate HTML report: ${generateHtmlReport}`);
-    core.info(`Update comment: ${updateComment}`);
-
-    // Check if we're in a PR context
-    if (!github.context.payload.pull_request) {
-      core.setFailed('This action can only be run on pull requests');
-      return;
-    }
-
-    // Check if coverage file exists
-    if (!fs.existsSync(coverageFilePath)) {
-      core.setFailed(`Coverage file not found: ${coverageFilePath}`);
-      return;
-    }
-
-    const analyzer = new CoverageAnalyzer();
-
-    // Parse coverage data
-    core.info('Parsing coverage data...');
-    const coverageData = await CoverageParser.parse(coverageFilePath);
-
-    // Get changed lines in PR
-    core.info('Getting PR changed lines...');
-    const changedLines = await analyzer.getPrChangedLines();
-
-    // Calculate coverage for changed lines
-    core.info('Calculating coverage for changed lines...');
-    const results = analyzer.calculateChangedLinesCoverage(coverageData, changedLines);
-
-    // Set outputs
-    core.setOutput('coverage-percentage', results.coverage.toFixed(2));
-    core.setOutput('lines-covered', results.coveredLines);
-    core.setOutput('total-lines', results.totalLines);
-    const meetsThreshold = results.coverage >= minimumCoverage;
-    core.setOutput('meets-threshold', meetsThreshold);
-
-    // Log results
-    core.info(`Coverage of changed lines: ${results.coverage.toFixed(2)}%`);
-    core.info(`Lines covered: ${results.coveredLines}/${results.totalLines}`);
-    core.info(`Meets threshold (${minimumCoverage}%): ${meetsThreshold}`);
-
-    // Generate HTML report if enabled
-    let htmlReportInfo = null;
-    if (generateHtmlReport) {
-      try {
-        core.info('Generating HTML coverage report...');
-        const htmlGenerator = new HtmlReportGenerator();
-        
-        const prData = {
-          number: github.context.payload.pull_request.number,
-          title: github.context.payload.pull_request.title
-        };
-        
-        const reportData = await htmlGenerator.generateReport(
-          results,
-          changedLines,
-          prData,
-          coverageData,
-          minimumCoverage,
-          coverageFilePath
-        );
-        htmlReportInfo = await analyzer.uploadHtmlReportArtifact(reportData);
-        
-        core.info(`HTML report generated: ${reportData.mainReport}`);
-        if (reportData.coverageFile) {
-          core.info(`Coverage file included in artifact: ${reportData.coverageFile}`);
-        }
-      } catch (error) {
-        core.warning(`Failed to generate HTML report: ${error.message}`);
-      }
-    }
-
-    // Create PR comment if enabled
-    if (commentOnPr) {
-      core.info(updateComment ? 'Creating/updating PR comment...' : 'Creating PR comment...');
-      await analyzer.createPrComment(results, minimumCoverage, meetsThreshold, htmlReportInfo, updateComment);
-    }
-
-    // Fail if coverage is below threshold
-    if (!meetsThreshold && failOnBelowThreshold) {
-      core.setFailed(
-        `Code coverage of changed lines (${results.coverage.toFixed(2)}%) is below the required threshold (${minimumCoverage}%)`
-      );
-    }
-
-  } catch (error) {
-    core.setFailed(`Action failed: ${error.message}`);
-    core.debug(error.stack);
-  }
-}
-
-run();
-
-module.exports = __webpack_exports__;
+/******/ 	
+/******/ 	// startup
+/******/ 	// Load entry module and return exports
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __nccwpck_require__(5105);
+/******/ 	module.exports = __webpack_exports__;
+/******/ 	
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map

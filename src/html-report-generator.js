@@ -75,12 +75,57 @@ class HtmlReportGenerator {
   }
 
   /**
+   * Generate HTML section for PR files missing from the coverage report
+   */
+  generateMissingFromCoverageSection(missingFromCoverage) {
+    if (!missingFromCoverage || missingFromCoverage.length === 0) {
+      return '';
+    }
+
+    const rows = missingFromCoverage.map(({ file, changedLines }) => `
+            <tr>
+                <td><code>${this.escapeHtml(file)}</code></td>
+                <td>${changedLines > 0 ? changedLines : '—'}</td>
+            </tr>
+        `).join('');
+
+    return `
+        <div class="missing-coverage-section">
+            <div class="missing-coverage-header">
+                <span class="missing-coverage-icon">⚠️</span>
+                <div>
+                    <h2>Files Not in Coverage Report</h2>
+                    <p>These PR changed files were not found in the coverage file and could not be analyzed.</p>
+                </div>
+            </div>
+            <table class="missing-coverage-table">
+                <thead>
+                    <tr>
+                        <th>File</th>
+                        <th>Lines Changed in Diff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+            <p class="missing-coverage-note">
+                These files may be excluded from Jest <code>collectCoverageFrom</code>, not imported by any test,
+                or use a path that does not match the coverage file.
+            </p>
+        </div>`;
+  }
+
+  /**
    * Generate enhanced main report with embedded file sections
    */
   generateEnhancedMainReport(results, prData, fileSectionsHtml, minimumCoverage) {
-    const { totalLines, coveredLines, coverage, fileResults } = results;
+    const { totalLines, coveredLines, coverage, fileResults, missingFromCoverage = [] } = results;
     const timestamp = new Date().toISOString();
-    
+    const missingFromCoverageHtml = this.generateMissingFromCoverageSection(missingFromCoverage);
+    const analyzedFileCount = Object.keys(fileResults).length;
+    const hasTrackableFiles = analyzedFileCount > 0;
+    const hasMissingFiles = missingFromCoverage.length > 0;
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -429,6 +474,75 @@ class HtmlReportGenerator {
         .scroll-top.visible {
             display: block;
         }
+
+        .missing-coverage-section {
+            margin: 20px 30px 30px;
+            border: 1px solid #f0c36d;
+            border-radius: 8px;
+            background: #fff8e6;
+            overflow: hidden;
+        }
+
+        .missing-coverage-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 20px 24px 0;
+        }
+
+        .missing-coverage-icon {
+            font-size: 1.5em;
+            line-height: 1;
+        }
+
+        .missing-coverage-header h2 {
+            font-size: 1.2em;
+            margin-bottom: 6px;
+            color: #735c0f;
+        }
+
+        .missing-coverage-header p {
+            margin: 0;
+            color: #6a737d;
+        }
+
+        .missing-coverage-table {
+            width: calc(100% - 48px);
+            margin: 16px 24px 0;
+            border-collapse: collapse;
+            background: white;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .missing-coverage-table th,
+        .missing-coverage-table td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid #e1e4e8;
+        }
+
+        .missing-coverage-table th {
+            background: #fffbf0;
+            color: #735c0f;
+            font-weight: 600;
+        }
+
+        .missing-coverage-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .missing-coverage-note {
+            margin: 16px 24px 20px;
+            color: #6a737d;
+            font-size: 0.92em;
+            line-height: 1.5;
+        }
+
+        .summary-card.warning h3 {
+            color: #b08800;
+        }
     </style>
 </head>
 <body>
@@ -472,10 +586,18 @@ class HtmlReportGenerator {
             </div>
             
             <div class="summary-card">
-                <h3>${Object.keys(fileResults).length}</h3>
-                <p>Files Modified</p>
+                <h3>${analyzedFileCount}</h3>
+                <p>Files With Coverage Data</p>
                 <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
-                    Files with changes
+                    Changed files found in coverage report
+                </div>
+            </div>
+
+            <div class="summary-card${hasMissingFiles ? ' warning' : ''}">
+                <h3>${missingFromCoverage.length}</h3>
+                <p>Not in Coverage File</p>
+                <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
+                    Changed PR files missing from coverage
                 </div>
             </div>
         </div>
@@ -494,14 +616,16 @@ class HtmlReportGenerator {
             </p>
         </div>
 
-        ${Object.keys(fileResults).length > 0 ? `
+        ${hasTrackableFiles ? `
         ${fileSectionsHtml}
-        ` : `
+        ` : (!hasMissingFiles ? `
         <div style="text-align: center; padding: 60px 20px; color: #586069;">
-            <h3>🎉 No files with changed lines found</h3>
-            <p>Either no files were modified, or the modifications don't include executable code.</p>
+            <h3>No trackable changed lines found</h3>
+            <p>Either no files were modified, or none of the changed lines have coverage data.</p>
         </div>
-        `}
+        ` : '')}
+
+        ${missingFromCoverageHtml}
 
         <div class="footer">
             <p>Generated by Jest PR Diff Code Coverage • ${timestamp}</p>

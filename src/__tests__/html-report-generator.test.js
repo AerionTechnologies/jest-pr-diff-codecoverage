@@ -135,40 +135,71 @@ describe('HtmlReportGenerator', () => {
         totalLines: 0,
         coveredLines: 0,
         coverage: 100.0,
-        fileResults: {}
+        fileResults: {},
+        missingFromCoverage: []
       };
 
       const mockFileSectionsHtml = '';
 
       const html = generator.generateEnhancedMainReport(mockResults, null, mockFileSectionsHtml);
 
-      expect(html).toContain('No files with changed lines found');
+      expect(html).toContain('No trackable changed lines found');
       expect(html).toContain('100.0%');
+    });
+
+    it('should show files missing from the coverage report', () => {
+      const mockResults = {
+        totalLines: 0,
+        coveredLines: 0,
+        coverage: 100.0,
+        fileResults: {},
+        missingFromCoverage: [
+          { file: 'app/navigators/app-navigator.tsx', changedLines: 11 },
+          { file: 'CHANGELOG.md', changedLines: 2 }
+        ]
+      };
+
+      const html = generator.generateEnhancedMainReport(mockResults, null, '');
+
+      expect(html).toContain('Files Not in Coverage Report');
+      expect(html).toContain('app/navigators/app-navigator.tsx');
+      expect(html).toContain('CHANGELOG.md');
+      expect(html).toContain('Not in Coverage File');
+      expect(html).not.toContain('No trackable changed lines found');
+    });
+  });
+
+  describe('generateMissingFromCoverageSection', () => {
+    it('should return empty string when there are no missing files', () => {
+      expect(generator.generateMissingFromCoverageSection([])).toBe('');
+      expect(generator.generateMissingFromCoverageSection(null)).toBe('');
+    });
+
+    it('should render a table of missing files', () => {
+      const html = generator.generateMissingFromCoverageSection([
+        { file: 'app/navigators/app-navigator.tsx', changedLines: 11 }
+      ]);
+
+      expect(html).toContain('Files Not in Coverage Report');
+      expect(html).toContain('app/navigators/app-navigator.tsx');
+      expect(html).toContain('11');
     });
   });
 
   describe('getCoverageBadgeClass', () => {
-    it('should return correct CSS class for high coverage', () => {
-      expect(generator.getCoverageBadgeClass(85)).toBe('coverage-high');
-      expect(generator.getCoverageBadgeClass(80)).toBe('coverage-high');
-    });
-
-    it('should return correct CSS class for medium coverage', () => {
-      expect(generator.getCoverageBadgeClass(65)).toBe('coverage-medium');
-      expect(generator.getCoverageBadgeClass(50)).toBe('coverage-medium');
-    });
-
-    it('should return correct CSS class for low coverage', () => {
-      expect(generator.getCoverageBadgeClass(30)).toBe('coverage-low');
-      expect(generator.getCoverageBadgeClass(0)).toBe('coverage-low');
+    it('should return pass or fail based on minimum coverage threshold', () => {
+      expect(generator.getCoverageBadgeClass(85, 80)).toBe('coverage-pass');
+      expect(generator.getCoverageBadgeClass(80, 80)).toBe('coverage-pass');
+      expect(generator.getCoverageBadgeClass(65, 80)).toBe('coverage-fail');
+      expect(generator.getCoverageBadgeClass(0, 80)).toBe('coverage-fail');
     });
   });
 
   describe('getCoverageIcon', () => {
-    it('should return correct icon for different coverage levels', () => {
-      expect(generator.getCoverageIcon(85)).toBe('✅');
-      expect(generator.getCoverageIcon(65)).toBe('⚠️');
-      expect(generator.getCoverageIcon(30)).toBe('❌');
+    it('should return pass or fail icon based on minimum coverage threshold', () => {
+      expect(generator.getCoverageIcon(85, 80)).toBe('✅');
+      expect(generator.getCoverageIcon(65, 80)).toBe('❌');
+      expect(generator.getCoverageIcon(0, 80)).toBe('❌');
     });
   });
 
