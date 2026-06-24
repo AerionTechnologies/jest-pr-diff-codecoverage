@@ -98,6 +98,28 @@ describe('HtmlReportGenerator', () => {
       );
       expect(result.coverageFile).toBe(path.join(generator.reportDir, 'lcov.info'));
     });
+
+    it('should include missing coverage files in the generated HTML report', async () => {
+      const mockCoverageResults = {
+        totalLines: 0,
+        coveredLines: 0,
+        coverage: 100.0,
+        fileResults: {},
+        missingFromCoverage: [
+          { file: 'app/navigators/app-navigator.tsx', changedLines: 11 }
+        ]
+      };
+
+      fs.existsSync.mockReturnValue(false);
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.writeFileSync.mockImplementation(() => {});
+
+      await generator.generateReport(mockCoverageResults, {}, { number: 5, title: 'Test PR' });
+
+      const writtenHtml = fs.writeFileSync.mock.calls[0][1];
+      expect(writtenHtml).toContain('Files Not in Coverage Report');
+      expect(writtenHtml).toContain('app/navigators/app-navigator.tsx');
+    });
   });
 
   describe('generateEnhancedMainReport', () => {

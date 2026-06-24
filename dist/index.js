@@ -30261,7 +30261,7 @@ class HtmlReportGenerator {
     
     // Create the enhanced main report with file sections
     const enhancedReportHtml = this.generateEnhancedMainReport(
-      { totalLines, coveredLines, coverage, fileResults },
+      coverageResults,
       prData,
       fileSectionsHtml,
       minimumCoverage
