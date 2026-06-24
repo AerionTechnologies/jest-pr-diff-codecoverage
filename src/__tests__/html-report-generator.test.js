@@ -99,13 +99,13 @@ describe('HtmlReportGenerator', () => {
       expect(result.coverageFile).toBe(path.join(generator.reportDir, 'lcov.info'));
     });
 
-    it('should include missing coverage files in the generated HTML report', async () => {
+    it('should include files with no executable changes in the generated HTML report', async () => {
       const mockCoverageResults = {
         totalLines: 0,
         coveredLines: 0,
         coverage: 100.0,
         fileResults: {},
-        missingFromCoverage: [
+        filesWithNoExecutableChanges: [
           { file: 'app/navigators/app-navigator.tsx', changedLines: 11 }
         ]
       };
@@ -117,7 +117,7 @@ describe('HtmlReportGenerator', () => {
       await generator.generateReport(mockCoverageResults, {}, { number: 5, title: 'Test PR' });
 
       const writtenHtml = fs.writeFileSync.mock.calls[0][1];
-      expect(writtenHtml).toContain('Files Not in Coverage Report');
+      expect(writtenHtml).toContain('Files with no executable changes');
       expect(writtenHtml).toContain('app/navigators/app-navigator.tsx');
     });
   });
@@ -165,46 +165,49 @@ describe('HtmlReportGenerator', () => {
 
       const html = generator.generateEnhancedMainReport(mockResults, null, mockFileSectionsHtml);
 
-      expect(html).toContain('No trackable changed lines found');
+      expect(html).toContain('No coverable changed lines found');
       expect(html).toContain('100.0%');
     });
 
-    it('should show files missing from the coverage report', () => {
+    it('should show files with no executable changes', () => {
       const mockResults = {
         totalLines: 0,
         coveredLines: 0,
         coverage: 100.0,
         fileResults: {},
-        missingFromCoverage: [
+        filesWithNoExecutableChanges: [
           { file: 'app/navigators/app-navigator.tsx', changedLines: 11 },
-          { file: 'CHANGELOG.md', changedLines: 2 }
+          { file: 'CHANGELOG.md', changedLines: 2 },
+          { file: 'app/navigators/messages-navigator.tsx', changedLines: 2 }
         ]
       };
 
       const html = generator.generateEnhancedMainReport(mockResults, null, '');
 
-      expect(html).toContain('Files Not in Coverage Report');
+      expect(html).toContain('Files with no executable changes');
       expect(html).toContain('app/navigators/app-navigator.tsx');
+      expect(html).toContain('app/navigators/messages-navigator.tsx');
       expect(html).toContain('CHANGELOG.md');
-      expect(html).toContain('Not in Coverage File');
-      expect(html).not.toContain('No trackable changed lines found');
+      expect(html).toContain('No Executable Changes');
+      expect(html).not.toContain('No coverable changed lines found');
     });
   });
 
-  describe('generateMissingFromCoverageSection', () => {
-    it('should return empty string when there are no missing files', () => {
-      expect(generator.generateMissingFromCoverageSection([])).toBe('');
-      expect(generator.generateMissingFromCoverageSection(null)).toBe('');
+  describe('generateFilesWithNoExecutableChangesSection', () => {
+    it('should return empty string when there are no files', () => {
+      expect(generator.generateFilesWithNoExecutableChangesSection([])).toBe('');
+      expect(generator.generateFilesWithNoExecutableChangesSection(null)).toBe('');
     });
 
-    it('should render a table of missing files', () => {
-      const html = generator.generateMissingFromCoverageSection([
-        { file: 'app/navigators/app-navigator.tsx', changedLines: 11 }
+    it('should render a combined table of files', () => {
+      const html = generator.generateFilesWithNoExecutableChangesSection([
+        { file: 'app/navigators/messages-navigator.tsx', changedLines: 2 },
+        { file: 'CHANGELOG.md', changedLines: 2 }
       ]);
 
-      expect(html).toContain('Files Not in Coverage Report');
-      expect(html).toContain('app/navigators/app-navigator.tsx');
-      expect(html).toContain('11');
+      expect(html).toContain('Files with no executable changes');
+      expect(html).toContain('app/navigators/messages-navigator.tsx');
+      expect(html).toContain('CHANGELOG.md');
     });
   });
 

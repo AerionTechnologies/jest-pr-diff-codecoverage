@@ -30,6 +30,64 @@ describe('calculateChangedLinesCoverage', () => {
       coverage: (2 / 3) * 100
     });
     expect(results.missingFromCoverage).toEqual([]);
+    expect(results.noTrackableLines).toEqual([]);
+    expect(results.filesWithNoExecutableChanges).toEqual([]);
+  });
+
+  it('should report changed files in coverage with no matching instrumented lines', () => {
+    const changedLines = {
+      'app/components/text-field.tsx': new Set([1, 2, 3])
+    };
+
+    const results = calculateChangedLinesCoverage(coverageData, changedLines);
+
+    expect(results.fileResults).toEqual({});
+    expect(results.noTrackableLines).toEqual([
+      { file: 'app/components/text-field.tsx', changedLines: 3 }
+    ]);
+    expect(results.filesWithNoExecutableChanges).toEqual([
+      { file: 'app/components/text-field.tsx', changedLines: 3 }
+    ]);
+    expect(results.missingFromCoverage).toEqual([]);
+  });
+
+  it('should split files between analyzed, missing, and no-trackable categories', () => {
+    const dataWithNavigator = [
+      ...coverageData,
+      {
+        file: 'app/navigators/messages-navigator.tsx',
+        lines: {
+          details: [
+            { line: 20, hit: 0 },
+            { line: 21, hit: 0 }
+          ]
+        }
+      }
+    ];
+
+    const changedLines = {
+      'app/components/text-field.tsx': new Set([10, 11]),
+      'app/navigators/messages-navigator.tsx': new Set([13, 14]),
+      'CHANGELOG.md': new Set([1, 2])
+    };
+
+    const results = calculateChangedLinesCoverage(dataWithNavigator, changedLines);
+
+    expect(results.fileResults['app/components/text-field.tsx']).toEqual({
+      totalLines: 2,
+      coveredLines: 1,
+      coverage: 50
+    });
+    expect(results.noTrackableLines).toEqual([
+      { file: 'app/navigators/messages-navigator.tsx', changedLines: 2 }
+    ]);
+    expect(results.missingFromCoverage).toEqual([
+      { file: 'CHANGELOG.md', changedLines: 2 }
+    ]);
+    expect(results.filesWithNoExecutableChanges).toEqual([
+      { file: 'app/navigators/messages-navigator.tsx', changedLines: 2 },
+      { file: 'CHANGELOG.md', changedLines: 2 }
+    ]);
   });
 
   it('should report PR changed files that are missing from the coverage file', () => {

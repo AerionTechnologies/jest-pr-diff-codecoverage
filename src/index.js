@@ -122,7 +122,13 @@ class CoverageAnalyzer {
    * Create PR comment with coverage results
    */
   async createPrComment(results, threshold, meetsThreshold, htmlReportInfo = null, updateExisting = false) {
-    const { totalLines, coveredLines, coverage, fileResults, missingFromCoverage = [] } = results;
+    const {
+      totalLines,
+      coveredLines,
+      coverage,
+      fileResults,
+      filesWithNoExecutableChanges = []
+    } = results;
     
     let comment = `## 📊 Code Coverage Report for Changed Lines\n\n`;
     
@@ -147,18 +153,18 @@ class CoverageAnalyzer {
       }
     }
 
-    if (missingFromCoverage.length > 0) {
-      comment += `\n### Files Not in Coverage Report\n\n`;
-      comment += `These PR changed files were not found in the coverage file and could not be analyzed:\n\n`;
+    if (filesWithNoExecutableChanges.length > 0) {
+      comment += `\n### Files with no executable changes\n\n`;
+      comment += `These changed files could not be checked for test coverage:\n\n`;
       comment += `| File | Lines Changed in Diff |\n`;
       comment += `|------|----------------------|\n`;
 
-      for (const { file, changedLines: changedLineCount } of missingFromCoverage) {
+      for (const { file, changedLines: changedLineCount } of filesWithNoExecutableChanges) {
         const linesLabel = changedLineCount > 0 ? changedLineCount : '—';
         comment += `| ${file} | ${linesLabel} |\n`;
       }
 
-      comment += `\n> These files may be excluded from Jest \`collectCoverageFrom\`, not imported by any test, or use a path that does not match the coverage file.\n`;
+      comment += `\n> These changes are not highlighted in the report. This often happens when a file is missing from the coverage output, or when the changed lines are imports, types, config, docs, or code that tests never ran.\n`;
     }
 
     if (!meetsThreshold) {
@@ -256,9 +262,9 @@ async function run() {
     core.info(`Coverage of changed lines: ${results.coverage.toFixed(2)}%`);
     core.info(`Lines covered: ${results.coveredLines}/${results.totalLines}`);
     core.info(`Meets threshold (${minimumCoverage}%): ${meetsThreshold}`);
-    if (results.missingFromCoverage.length > 0) {
-      core.info(`Files not in coverage report: ${results.missingFromCoverage.length}`);
-      for (const { file } of results.missingFromCoverage) {
+    if (results.filesWithNoExecutableChanges.length > 0) {
+      core.info(`Files with no executable changes: ${results.filesWithNoExecutableChanges.length}`);
+      for (const { file } of results.filesWithNoExecutableChanges) {
         core.info(`  - ${file}`);
       }
     }

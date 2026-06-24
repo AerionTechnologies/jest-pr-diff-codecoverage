@@ -75,14 +75,14 @@ class HtmlReportGenerator {
   }
 
   /**
-   * Generate HTML section for PR files missing from the coverage report
+   * Generate HTML section for PR files with no executable changes in coverage data
    */
-  generateMissingFromCoverageSection(missingFromCoverage) {
-    if (!missingFromCoverage || missingFromCoverage.length === 0) {
+  generateFilesWithNoExecutableChangesSection(filesWithNoExecutableChanges) {
+    if (!filesWithNoExecutableChanges || filesWithNoExecutableChanges.length === 0) {
       return '';
     }
 
-    const rows = missingFromCoverage.map(({ file, changedLines }) => `
+    const rows = filesWithNoExecutableChanges.map(({ file, changedLines }) => `
             <tr>
                 <td><code>${this.escapeHtml(file)}</code></td>
                 <td>${changedLines > 0 ? changedLines : '—'}</td>
@@ -92,10 +92,10 @@ class HtmlReportGenerator {
     return `
         <div class="missing-coverage-section">
             <div class="missing-coverage-header">
-                <span class="missing-coverage-icon">⚠️</span>
+                <span class="missing-coverage-icon">ℹ️</span>
                 <div>
-                    <h2>Files Not in Coverage Report</h2>
-                    <p>These PR changed files were not found in the coverage file and could not be analyzed.</p>
+                    <h2>Files with no executable changes</h2>
+                    <p>These changed files could not be checked for test coverage.</p>
                 </div>
             </div>
             <table class="missing-coverage-table">
@@ -110,8 +110,9 @@ class HtmlReportGenerator {
                 </tbody>
             </table>
             <p class="missing-coverage-note">
-                These files may be excluded from Jest <code>collectCoverageFrom</code>, not imported by any test,
-                or use a path that does not match the coverage file.
+                These changes are not highlighted in the report. This often happens when a file is missing from
+                the coverage output, or when the changed lines are imports, types, config, docs, or code that
+                tests never ran.
             </p>
         </div>`;
   }
@@ -120,12 +121,21 @@ class HtmlReportGenerator {
    * Generate enhanced main report with embedded file sections
    */
   generateEnhancedMainReport(results, prData, fileSectionsHtml, minimumCoverage) {
-    const { totalLines, coveredLines, coverage, fileResults, missingFromCoverage = [] } = results;
+    const {
+      totalLines,
+      coveredLines,
+      coverage,
+      fileResults,
+      filesWithNoExecutableChanges = []
+    } = results;
     const timestamp = new Date().toISOString();
-    const missingFromCoverageHtml = this.generateMissingFromCoverageSection(missingFromCoverage);
+    const filesWithNoExecutableChangesHtml = this.generateFilesWithNoExecutableChangesSection(
+      filesWithNoExecutableChanges
+    );
     const analyzedFileCount = Object.keys(fileResults).length;
     const hasTrackableFiles = analyzedFileCount > 0;
-    const hasMissingFiles = missingFromCoverage.length > 0;
+    const hasNonExecutableFiles = filesWithNoExecutableChanges.length > 0;
+    const hasUnanalyzedFiles = hasNonExecutableFiles;
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -589,15 +599,15 @@ class HtmlReportGenerator {
                 <h3>${analyzedFileCount}</h3>
                 <p>Files With Coverage Data</p>
                 <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
-                    Changed files found in coverage report
+                    Changed files included in coverage results
                 </div>
             </div>
 
-            <div class="summary-card${hasMissingFiles ? ' warning' : ''}">
-                <h3>${missingFromCoverage.length}</h3>
-                <p>Not in Coverage File</p>
+            <div class="summary-card${hasNonExecutableFiles ? ' warning' : ''}">
+                <h3>${filesWithNoExecutableChanges.length}</h3>
+                <p>No Executable Changes</p>
                 <div style="font-size: 0.8em; color: #586069; margin-top: 8px;">
-                    Changed PR files missing from coverage
+                    Changed files not included in coverage results
                 </div>
             </div>
         </div>
@@ -608,24 +618,23 @@ class HtmlReportGenerator {
                 <strong style="font-size: 1.1em;">About This Report</strong>
             </div>
             <p style="margin: 0; line-height: 1.5;">
-                This report shows <strong>test coverage for changed lines that have coverage data</strong>, not overall project coverage. 
-                It analyzes which executable lines modified in this PR are covered by tests. Lines highlighted in 
-                <span style="background: #e6ffed; padding: 2px 4px; border-radius: 3px;">green</span> are covered by tests, 
+                This report shows <strong>test coverage for changed lines in this PR</strong>, not overall project coverage.
+                Lines highlighted in <span style="background: #e6ffed; padding: 2px 4px; border-radius: 3px;">green</span> are covered by tests,
                 while lines highlighted in <span style="background: #ffebe9; padding: 2px 4px; border-radius: 3px;">red</span> are not covered.
-                Changed lines without coverage data (comments, imports, etc.) appear without highlighting.
+                Changed lines that could not be checked appear without highlighting.
             </p>
         </div>
 
         ${hasTrackableFiles ? `
         ${fileSectionsHtml}
-        ` : (!hasMissingFiles ? `
+        ` : (!hasUnanalyzedFiles ? `
         <div style="text-align: center; padding: 60px 20px; color: #586069;">
-            <h3>No trackable changed lines found</h3>
-            <p>Either no files were modified, or none of the changed lines have coverage data.</p>
+            <h3>No coverable changed lines found</h3>
+            <p>Either no files were modified, or none of the changed lines could be checked against coverage data.</p>
         </div>
         ` : '')}
 
-        ${missingFromCoverageHtml}
+        ${filesWithNoExecutableChangesHtml}
 
         <div class="footer">
             <p>Generated by Jest PR Diff Code Coverage • ${timestamp}</p>
@@ -743,13 +752,13 @@ class HtmlReportGenerator {
       const isCovered = coverageMap.get(lineNumber);
       
       let lineClass = '';
-      // Only highlight changed lines that have coverage data
+      // Only highlight changed lines that appear in the coverage file with hit data
       if (isChanged && isCovered === true) {
         lineClass = 'line-covered';
       } else if (isChanged && isCovered === false) {
         lineClass = 'line-uncovered';
       }
-      // Changed lines without coverage data will have no special styling (appear as context)
+      // Changed lines without coverage data appear without highlighting
       
       result += `
         <div class="line ${lineClass}">
@@ -793,7 +802,7 @@ class HtmlReportGenerator {
                     </div>
                     <span>Changed: ${result.totalLines}</span>
                     <span>Covered: ${result.coveredLines}</span>
-                    <span style="font-size: 0.8em; opacity: 0.7;">Diff Coverage</span>
+                    <span style="font-size: 0.8em; opacity: 0.7;">Changed lines</span>
                     <span class="expand-icon">▼</span>
                 </div>
             </div>
