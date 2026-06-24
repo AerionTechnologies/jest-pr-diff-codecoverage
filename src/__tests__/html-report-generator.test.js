@@ -64,6 +64,40 @@ describe('HtmlReportGenerator', () => {
       expect(fs.mkdirSync).toHaveBeenCalled();
       expect(fs.writeFileSync).toHaveBeenCalled();
     });
+
+    it('should copy coverage file into report directory when provided', async () => {
+      const mockCoverageResults = {
+        totalLines: 10,
+        coveredLines: 8,
+        coverage: 80.0,
+        fileResults: {}
+      };
+
+      fs.existsSync.mockImplementation((filePath) => {
+        if (filePath === 'coverage/lcov.info') {
+          return true;
+        }
+        return false;
+      });
+      fs.mkdirSync.mockImplementation(() => {});
+      fs.writeFileSync.mockImplementation(() => {});
+      fs.copyFileSync.mockImplementation(() => {});
+
+      const result = await generator.generateReport(
+        mockCoverageResults,
+        {},
+        { number: 123, title: 'Test PR' },
+        null,
+        80,
+        'coverage/lcov.info'
+      );
+
+      expect(fs.copyFileSync).toHaveBeenCalledWith(
+        'coverage/lcov.info',
+        path.join(generator.reportDir, 'lcov.info')
+      );
+      expect(result.coverageFile).toBe(path.join(generator.reportDir, 'lcov.info'));
+    });
   });
 
   describe('generateEnhancedMainReport', () => {

@@ -30175,7 +30175,7 @@ class HtmlReportGenerator {
   /**
    * Generate HTML coverage report for changed files
    */
-  async generateReport(coverageResults, changedLines, prData, coverageData = null, minimumCoverage = 80) {
+  async generateReport(coverageResults, changedLines, prData, coverageData = null, minimumCoverage = 80, coverageFilePath = null) {
     const { totalLines, coveredLines, coverage, fileResults } = coverageResults;
     
     // Create report directory
@@ -30197,10 +30197,18 @@ class HtmlReportGenerator {
     const mainReportPath = path.join(this.reportDir, 'index.html');
     fs.writeFileSync(mainReportPath, enhancedReportHtml);
 
+    let coverageFile = null;
+    if (coverageFilePath && fs.existsSync(coverageFilePath)) {
+      const coverageDestPath = path.join(this.reportDir, path.basename(coverageFilePath));
+      fs.copyFileSync(coverageFilePath, coverageDestPath);
+      coverageFile = coverageDestPath;
+    }
+
     return {
       mainReport: mainReportPath,
       fileReports: [], // No separate files needed anymore
-      reportDir: this.reportDir
+      reportDir: this.reportDir,
+      coverageFile
     };
   }
 
@@ -33153,7 +33161,7 @@ class CoverageAnalyzer {
       const artifactName = `coverage-report-pr-${this.context.payload.pull_request.number}`;
       
       // Use GitHub's upload-artifact action via REST API
-      core.info(`Uploading HTML coverage report as artifact: ${artifactName}`);
+      core.info(`Uploading HTML coverage report and coverage file as artifact: ${artifactName}`);
       
       // Set output for the artifact path so it can be used by upload-artifact action
       core.setOutput('html-report-path', reportData.reportDir);
@@ -33214,7 +33222,7 @@ class CoverageAnalyzer {
     // Add HTML report link if available
     if (htmlReportInfo) {
       comment += `📋 **[View Detailed HTML Coverage Report](${htmlReportInfo.downloadUrl || '#'})**\n`;
-      comment += `*Click the link above to view the workflow run and download the \`${htmlReportInfo.artifactName}\` artifact for detailed line-by-line coverage analysis.*\n\n`;
+      comment += `*Click the link above to view the workflow run and download the \`${htmlReportInfo.artifactName}\` artifact for detailed line-by-line coverage analysis and the original coverage file.*\n\n`;
     }
 
     if (Object.keys(fileResults).length > 0) {
@@ -33235,7 +33243,7 @@ class CoverageAnalyzer {
 
     if (htmlReportInfo) {
       comment += `\n\n---\n📁 **HTML Report Artifact:** \`${htmlReportInfo.artifactName}\`\n`;
-      comment += `The detailed HTML coverage report is available as a downloadable artifact in the [workflow run](${htmlReportInfo.downloadUrl}). `;
+      comment += `The detailed HTML coverage report and original coverage file are available as a downloadable artifact in the [workflow run](${htmlReportInfo.downloadUrl}). `;
       comment += `Once the workflow completes, you can download the artifact to view comprehensive coverage details.`;
     }
 
@@ -33336,10 +33344,20 @@ async function run() {
           title: github.context.payload.pull_request.title
         };
         
-        const reportData = await htmlGenerator.generateReport(results, changedLines, prData, coverageData, minimumCoverage);
+        const reportData = await htmlGenerator.generateReport(
+          results,
+          changedLines,
+          prData,
+          coverageData,
+          minimumCoverage,
+          coverageFilePath
+        );
         htmlReportInfo = await analyzer.uploadHtmlReportArtifact(reportData);
         
         core.info(`HTML report generated: ${reportData.mainReport}`);
+        if (reportData.coverageFile) {
+          core.info(`Coverage file included in artifact: ${reportData.coverageFile}`);
+        }
       } catch (error) {
         core.warning(`Failed to generate HTML report: ${error.message}`);
       }

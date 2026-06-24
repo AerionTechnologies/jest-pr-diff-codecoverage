@@ -12,7 +12,7 @@ class HtmlReportGenerator {
   /**
    * Generate HTML coverage report for changed files
    */
-  async generateReport(coverageResults, changedLines, prData, coverageData = null, minimumCoverage = 80) {
+  async generateReport(coverageResults, changedLines, prData, coverageData = null, minimumCoverage = 80, coverageFilePath = null) {
     const { totalLines, coveredLines, coverage, fileResults } = coverageResults;
     
     // Create report directory
@@ -34,10 +34,18 @@ class HtmlReportGenerator {
     const mainReportPath = path.join(this.reportDir, 'index.html');
     fs.writeFileSync(mainReportPath, enhancedReportHtml);
 
+    let coverageFile = null;
+    if (coverageFilePath && fs.existsSync(coverageFilePath)) {
+      const coverageDestPath = path.join(this.reportDir, path.basename(coverageFilePath));
+      fs.copyFileSync(coverageFilePath, coverageDestPath);
+      coverageFile = coverageDestPath;
+    }
+
     return {
       mainReport: mainReportPath,
       fileReports: [], // No separate files needed anymore
-      reportDir: this.reportDir
+      reportDir: this.reportDir,
+      coverageFile
     };
   }
 

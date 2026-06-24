@@ -205,7 +205,7 @@ When `generate-html-report` is enabled, the action creates a beautiful, interact
 - Syntax highlighting for better readability
 
 ### 🔗 **Easy Access**
-- Reports are uploaded as GitHub Actions artifacts
+- Reports are uploaded as GitHub Actions artifacts (HTML report plus the original coverage file)
 - Direct download links in PR comments
 - Accessible to all team members with repository access
 - Retained for configurable duration (default: 30 days)
