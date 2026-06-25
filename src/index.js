@@ -155,6 +155,7 @@ class CoverageAnalyzer {
 
     if (filesWithNoExecutableChanges.length > 0) {
       comment += `\n### Files with no executable changes\n\n`;
+      comment += `<details>\n<summary>Show file list</summary>\n\n`;
       comment += `These changed files could not be checked for test coverage:\n\n`;
       comment += `| File | Lines Changed in Diff |\n`;
       comment += `|------|----------------------|\n`;
@@ -165,6 +166,7 @@ class CoverageAnalyzer {
       }
 
       comment += `\n> These changes are not highlighted in the report. This often happens when a file is missing from the coverage output, or when the changed lines are imports, types, config, docs, or code that tests never ran.\n`;
+      comment += `</details>\n`;
     }
 
     if (!meetsThreshold) {
